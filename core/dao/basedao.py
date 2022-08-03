@@ -250,42 +250,86 @@ class BaseDao(object, metaclass=abc.ABCMeta):
 
         return result
 
-    def __resolve_filter_clauses(self, filter_clauses: List[FilterClause], stmt) -> None:
+    def __resolve_filter_content(self, filter_clauses: List[FilterClause]) -> list:
+        """
+        Esto resuelve el contenido del filtro en sí así como su operador, sin llegar a añadirlo al statement. Lo hago
+        así para poder controlar mejor el caso de filtros asociados entre ellos por un paréntesis.
+        :param filter_clauses:
+        :return: list
+        """
+        filter_content = []
+
+        for filter_q in filter_clauses:
+            # Primero voy recuperando los campos por nombre de la entidad objetivo
+            field_to_filter_by = getattr(self.entity_type, filter_q.field_name)
+
+            # Calcular operador de unión entre filtros
+            f_operator: expression = and_
+            if filter_q.operator_type is not None and filter_q.operator_type == EnumOperatorTypes.OR:
+                f_operator = or_
+
+            # Paréntesis: si el atributo related_filter_clauses no está vacío, significa que la cláusula está
+            # unida a otras dentro de un paréntesis.
+            # Creo dos listas, una iniciada con el filtro principal
+            inner_filter_list = [filter_q]
+
+            # Si tiene filtros asociados, los añado a la lista interna de filtros para tratarlos todos como uno sólo,
+            # de tal manera que estarán todos dentro de un paréntesis
+            if filter_q.related_filter_clauses:
+                for related_filter in filter_q.related_filter_clauses:
+                    inner_filter_list.append(related_filter)
+
+            # Lista final de expresiones que se añadirán al operador al final
+            inner_expression_list = []
+
+            # Voy comprobando el tipo de filtro y construyendo la expresión de forma adecuada según los criterios de
+            # SQLAlchemy
+            for f in inner_filter_list:
+                # Expresión a añadir
+                filter_expression: any = None
+
+                if f.filter_type == EnumFilterTypes.EQUALS:
+                    filter_expression = field_to_filter_by == f.object_to_compare
+                elif f.filter_type == EnumFilterTypes.NOT_EQUALS:
+                    filter_expression = field_to_filter_by != f.object_to_compare
+                elif f.filter_type == EnumFilterTypes.LIKE or f.filter_type == EnumFilterTypes.NOT_LIKE:
+                    # Si no incluye porcentaje, le añado yo uno al principio y al final
+                    f.object_to_compare = f'%{f.object_to_compare}%' if "%" not in f.object_to_compare \
+                        else f.object_to_compare
+                    filter_expression = field_to_filter_by.like(
+                        f.object_to_compare) if f.filter_type == EnumFilterTypes.LIKE \
+                        else field_to_filter_by.not_like(f.object_to_compare)
+
+                inner_expression_list.append(filter_expression)
+
+            # Si tiene filtros asociados, hay que utilizar al final self_group
+            if filter_q.related_filter_clauses:
+                filter_content.append(f_operator(*inner_expression_list).self_group())
+            else:
+                filter_content.append(f_operator(*inner_expression_list))
+
+        return filter_content
+
+    def __resolve_filter_clauses(self, filter_clauses: List[FilterClause], stmt):
         """
         Resuelve la cláuses WHERE de la consulta.
         :param filter_clauses: Lista de filtros a resolver.
         :param stmt: Expresión de la consulta de SQLAlchemy.
-        :return: None
+        :return: statement
         """
-        for f in filter_clauses:
-            # Primero voy recuperando los campos por nombre de la entidad objetivo
-            field_to_filter_by = getattr(self.entity_type, f.field_name)
-            # Expresión a añadir
-            filter_expression: any = None
+        # TODO Investigar esto: se supone que estoy pasando como parámetro stmt, una referencia a un objeto. Cualquier
+        # modificación debería reflejarse, pero a la salida de este método no lo hace. Si devuelvo al final un objeto
+        # con la misma referencia de memoria sí que funciona...
+        statement = stmt
 
-            # Calcular operador de unión entre filtros
-            f_operator: expression = and_
-            if f.operator_type is not None and f.operator_type == EnumOperatorTypes.OR:
-                f_operator = or_
+        # Voy concatenando ek contenido de los filtros al statement
+        filter_content = self.__resolve_filter_content(filter_clauses)
 
-            # Paréntesis: self_group
+        for f in filter_content:
+            statement = statement.where(f)
 
-            # Voy comprobando el tipo de filtro y construyendo la expresión de forma adecuada según los criterios de
-            # SQLAlchemy
-            if f.filter_type == EnumFilterTypes.EQUALS:
-                filter_expression = field_to_filter_by == f.object_to_compare
-            elif f.filter_type == EnumFilterTypes.NOT_EQUALS:
-                filter_expression = field_to_filter_by != f.object_to_compare
-            elif f.filter_type == EnumFilterTypes.LIKE or f.filter_type == EnumFilterTypes.NOT_LIKE:
-                # Si no incluye porcentaje, le añado yo uno al principio y al final
-                f.object_to_compare = f'%{f.object_to_compare}%' if "%" not in f.object_to_compare \
-                    else f.object_to_compare
-                filter_expression = field_to_filter_by.like(
-                    f.object_to_compare) if f.filter_type == EnumFilterTypes.LIKE \
-                    else field_to_filter_by.not_like(f.object_to_compare)
-
-            # Voy concatenando los filtros al statement
-            stmt = stmt.where(f_operator(filter_expression))
+        # Por algún motivo, si no devuelvo un objeto luego no se me actualiza stmt pasado como referencia...
+        return statement
 
     def select(self, filter_clauses: List[FilterClause] = None) -> List[BaseEntity]:
         """
@@ -298,9 +342,13 @@ class BaseDao(object, metaclass=abc.ABCMeta):
 
         # Comprobar si hay filtros
         if filter_clauses:
-            self.__resolve_filter_clauses(filter_clauses=filter_clauses, stmt=stmt)
+            # Resolver filtros
+            stmt = self.__resolve_filter_clauses(filter_clauses=filter_clauses, stmt=stmt)
 
         stmt = stmt.order_by(self.entity_type.id.desc())
+
+        # DEPURACIÓN
+        print(str(stmt))
 
         # Ejecutar la consulta
         result = my_session.execute(stmt).scalars().all()

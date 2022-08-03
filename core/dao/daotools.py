@@ -1,4 +1,3 @@
-# FILTER
 import enum
 from collections import namedtuple
 
@@ -66,8 +65,7 @@ class FilterClause(object):
     """Clase para modelado de cláusulas WHERE para MySQL."""
 
     def __init__(self, field_name: str, filter_type: (EnumFilterTypes, str), object_to_compare: any,
-                 operator_type: (EnumOperatorTypes, str) = None, start_parenthesis: int = None,
-                 end_parenthesis: int = None):
+                 operator_type: (EnumOperatorTypes, str) = None, related_filter_clauses: list = None):
         self.field_name = field_name
         """Nombre del campo."""
         self.filter_type = filter_type if isinstance(filter_type, EnumFilterTypes) else EnumFilterTypes[filter_type]
@@ -77,8 +75,6 @@ class FilterClause(object):
         self.operator_type = (operator_type if isinstance(operator_type, EnumOperatorTypes)
                               else EnumOperatorTypes[operator_type]) if operator_type is not None \
             else EnumOperatorTypes.AND
-        """Tipo de operador que conecta con el filtro inmediatamente anterior. Si null, se asume que es AND."""
-        self.start_parenthesis = start_parenthesis
-        """Número de paréntesis al principio."""
-        self.end_parenthesis = end_parenthesis
-        """Número de paréntesis al final."""
+        self.related_filter_clauses = related_filter_clauses
+        """Lista de otros FilterClause relacionados con éste. Se utiliza para filtros que van todos juntos 
+        dentro de un paréntesis."""
