@@ -1,8 +1,8 @@
-import abc
 import types
 from typing import Callable, Dict, Type
 
 from core.dao.basedao import BaseDao, BaseEntity
+from core.exception.errorhandler import ErrorHandler
 
 
 def service_method(function):
@@ -21,7 +21,7 @@ def service_method(function):
     return function
 
 
-class BaseService(object, metaclass=abc.ABCMeta):
+class BaseService(object, metaclass=ErrorHandler):
     """
     Clase abstracta de la que han de heredar el resto de servicios del programa.
     """
@@ -86,10 +86,10 @@ class BaseService(object, metaclass=abc.ABCMeta):
 
             # Devolver resultado
             return result
-        except Exception:
+        except Exception as e:
             # Si hay algún error, hacer rollback y devolver error hacia arriba.
             self._dao.rollback()
-            raise
+            raise e
         finally:
             # Desconectar siempre al final (sólo desconecta la función original, la que inició la transacción y solicitó
             # la conexión del hilo)

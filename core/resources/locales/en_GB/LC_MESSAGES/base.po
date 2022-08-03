@@ -1,0 +1,45 @@
+msgid ""
+msgstr ""
+"Project-Id-Version: Transifex\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2018-03-29 12:41+0000\n"
+"PO-Revision-Date: 2018-03-29 12:43+0000\n"
+"Last-Translator: Transifex\n"
+"Language-Team: English (http://www.transifex.com/transifex/transifex/language/en/)\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Language: en\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+
+# Mensajes
+msgid "i18n_base_commonError_not_id_in_update"
+msgstr "An id has not been sent to identify the entity to update."
+
+msgid "i18n_base_common_insert_success"
+msgstr "The record '%s' has been inserted successfully."
+
+msgid "i18n_base_common_delete_success"
+msgstr "The record '%s' has been deleted successfully."
+
+msgid "i18n_base_common_update_success"
+msgstr "The record '%s' has been updated successfully."
+
+# Errores
+msgid "i18n_base_knownError_integrityError"
+msgstr "There was an error when entering or modifying the record, it is possible that there is one like it."
+
+msgid "i18n_base_commonError_database_connection"
+msgstr "The connection to the database is not open."
+
+msgid "i18n_base_commonError_request"
+msgstr "An error occurred processing the request: %s"
+
+msgid "i18n_base_knownError_operationalError"
+msgstr "An error occurred with one of the fields in the object."
+
+msgid "i18n_base_commonError_query_translate"
+msgstr "An error occurred with one clauses during query translation: %s."
+
+msgid "i18n_base_commonError_unknown_field"
+msgstr "Field %s does not exist in entity %s."

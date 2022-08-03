@@ -1,0 +1,45 @@
+msgid ""
+msgstr ""
+"Project-Id-Version: 1.0.0\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2020-10-17 17:00-0500\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: XXXXX\n"
+"Language-Team: Es XXXX\n"
+"Language: Es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+
+# Mensajes
+msgid "i18n_base_common_insert_success"
+msgstr "El registro '%s' se ha insertado con éxito."
+
+msgid "i18n_base_common_delete_success"
+msgstr "El registro '%s' se ha eliminado con éxito."
+
+msgid "i18n_base_common_update_success"
+msgstr "El registro '%s' se ha actualizado con éxito."
+
+# Errores
+msgid "i18n_base_commonError_not_id_in_update"
+msgstr "No se han enviado un id para identificar la entidad a actualizar."
+
+msgid "i18n_base_knownError_integrityError"
+msgstr "Se ha producido un error al introducir o modificar el registro, es posible que exista uno igual."
+
+msgid "i18n_base_commonError_database_connection"
+msgstr "La conexión con la base de datos no está abierta."
+
+msgid "i18n_base_commonError_request"
+msgstr "Se ha producido un error procesando la petición: %s"
+
+msgid "i18n_base_knownError_operationalError"
+msgstr "Se ha producido un error con alguno de los campos del objeto."
+
+msgid "i18n_base_commonError_query_translate"
+msgstr "Se produjo un error con una cláusula durante la traducción de la consulta: %s."
+
+msgid "i18n_base_commonError_unknown_field"
+msgstr "El campo %s no existe en la entidad %s."
