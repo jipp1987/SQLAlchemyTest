@@ -250,13 +250,14 @@ class BaseDao(object, metaclass=abc.ABCMeta):
 
         return result
 
-    def __resolve_filter_content(self, filter_clauses: List[FilterClause]) -> list:
+    def __resolve_filter_clauses(self, filter_clauses: List[FilterClause], stmt) -> any:
         """
-        Esto resuelve el contenido del filtro en sí así como su operador, sin llegar a añadirlo al statement. Lo hago
-        así para poder controlar mejor el caso de filtros asociados entre ellos por un paréntesis.
+        Resuelve el contenido de los filtros.
+        :param stmt: Statement al que se le van a añadir los filtros.
         :param filter_clauses:
-        :return: list
+        :return: Devuelve el statement con los filtros añadidos
         """
+        # Contenido final del filtro en forma de listado que se va a añadir al statement
         filter_content = []
 
         for filter_q in filter_clauses:
@@ -282,12 +283,14 @@ class BaseDao(object, metaclass=abc.ABCMeta):
             # Lista final de expresiones que se añadirán al operador al final
             inner_expression_list = []
 
-            # Voy comprobando el tipo de filtro y construyendo la expresión de forma adecuada según los criterios de
-            # SQLAlchemy
+            # Lo normal es que sea un sólo filtro, pero con esto puedo controlar la posibilidad de que haya varios
+            # filtros relacionados dentro de un paréntesis.
             for f in inner_filter_list:
                 # Expresión a añadir
                 filter_expression: any = None
 
+                # Voy comprobando el tipo de filtro y construyendo la expresión de forma adecuada según los criterios de
+                # SQLAlchemy
                 if f.filter_type == EnumFilterTypes.EQUALS:
                     filter_expression = field_to_filter_by == f.object_to_compare
                 elif f.filter_type == EnumFilterTypes.NOT_EQUALS:
@@ -302,34 +305,14 @@ class BaseDao(object, metaclass=abc.ABCMeta):
 
                 inner_expression_list.append(filter_expression)
 
-            # Si tiene filtros asociados, hay que utilizar al final self_group
+            # Si tiene filtros asociados, hay que utilizar al final self_group para que los relacione dentro de un
+            # mismo paréntesis
             if filter_q.related_filter_clauses:
                 filter_content.append(f_operator(*inner_expression_list).self_group())
             else:
                 filter_content.append(f_operator(*inner_expression_list))
 
-        return filter_content
-
-    def __resolve_filter_clauses(self, filter_clauses: List[FilterClause], stmt):
-        """
-        Resuelve la cláuses WHERE de la consulta.
-        :param filter_clauses: Lista de filtros a resolver.
-        :param stmt: Expresión de la consulta de SQLAlchemy.
-        :return: statement
-        """
-        # TODO Investigar esto: se supone que estoy pasando como parámetro stmt, una referencia a un objeto. Cualquier
-        # modificación debería reflejarse, pero a la salida de este método no lo hace. Si devuelvo al final un objeto
-        # con la misma referencia de memoria sí que funciona...
-        statement = stmt
-
-        # Voy concatenando ek contenido de los filtros al statement
-        filter_content = self.__resolve_filter_content(filter_clauses)
-
-        for f in filter_content:
-            statement = statement.where(f)
-
-        # Por algún motivo, si no devuelvo un objeto luego no se me actualiza stmt pasado como referencia...
-        return statement
+        return stmt.where(*filter_content)
 
     def select(self, filter_clauses: List[FilterClause] = None) -> List[BaseEntity]:
         """
@@ -348,7 +331,7 @@ class BaseDao(object, metaclass=abc.ABCMeta):
         stmt = stmt.order_by(self.entity_type.id.desc())
 
         # DEPURACIÓN
-        print(str(stmt))
+        print(f"{str(stmt)}\n")
 
         # Ejecutar la consulta
         result = my_session.execute(stmt).scalars().all()
