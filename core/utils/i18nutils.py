@@ -2,15 +2,19 @@ import gettext
 import locale
 import os
 
+from core.utils.fileutils import get_project_root_dir
+
 __languages = {
-    # base es el nombre del fichero mo, locales es el director en donde se encuentra
-    # estas son las rutas de los ficheros de internacionalización del core. Uso la ruta relativa desde este módulo.
-    "es_ES": gettext.translation('base', os.path.abspath(os.path.dirname(__file__)) + './../resources/locales',
+    # base es el nombre del fichero mo, locales es el directorio en donde se encuentra
+    "es_ES": gettext.translation('base', os.path.abspath(os.path.dirname(__file__))
+                                 + f'{os.path.join(get_project_root_dir(), "/resources")}/locales',
                                  languages=['es_ES'], fallback=True),
-    "en_GB": gettext.translation('base', os.path.abspath(os.path.dirname(__file__)) + './../resources/locales',
+    "en_GB": gettext.translation('base', os.path.abspath(os.path.dirname(__file__))
+                                 + f'{os.path.join(get_project_root_dir(), "/resources")}/locales',
                                  languages=['en_GB'], fallback=True)
 }
-"""Diccionario con traductores de gettext identificados por el código iso del locale"""
+"""Diccionario con traductores de gettext identificados por el código iso del locale. OJO!!! La ruta del directorio de 
+locales se espera que esté en la raíz del proyecto/resources"""
 
 
 def change_locale(locale_iso: str):

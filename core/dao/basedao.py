@@ -247,10 +247,15 @@ class BaseDao(object, metaclass=abc.ABCMeta):
 
         return result
 
-    def select(self):
+    def select(self, filter_clause=None):
         my_session = type(self).get_session_for_current_thread()
 
-        stmt = select(self.entity_type).order_by(self.entity_type.id.desc())
+        stmt = select(self.entity_type)
+
+        if filter_clause is not None:
+            stmt = stmt.where(filter_clause)
+
+        stmt = stmt.order_by(self.entity_type.id.desc())
         result = my_session.execute(stmt).scalars().all()
 
         # Retiro los objetos de la sesión para poder trabajar con ellos desde fuera

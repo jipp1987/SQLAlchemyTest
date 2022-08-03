@@ -4,16 +4,15 @@ import types
 from functools import wraps
 from typing import Tuple, List
 
-from core.utils import i18nutils
-
 
 class CustomException(Exception):
     """Excepción personalizada, a modo de barrera de fallos para intepretar las excepciones y no perder su
     información. Se utiliza en los servicios.
     """
 
-    __known_error_types: List[Tuple] = [("IntegrityError", "i18n_base_knownError_integrityError"),
-                                       ("OperationalError", "i18n_base_knownError_operationalError")]
+    __known_error_types: List[Tuple] = [("IntegrityError", "There was an error when entering or modifying the record, "
+                                                           "it is possible that there is one like it."),
+                                        ("OperationalError", "An error occurred with one of the fields in the object.")]
     """Errores conocidos y su clave i18n de error conocido, es lo que se intenta mostrar al usuario."""
 
     # Constructor
@@ -35,16 +34,17 @@ class CustomException(Exception):
         A partir del tipo de excepción, establece un error conocido, normalmente para mostrar al usuario
         :return: Mensaje con un mensaje que mostrar al usuario a partir de una excepción conocida
         """
-        string = None
+        known_error = self.exception_type
+
         if self.exception_type is not None:
             for pair_values in type(self).__known_error_types:
                 # El tipo de excepción es la clave del diccionario
                 if self.exception_type == pair_values[0]:
                     # Esto es el valor, que es una clave i18n y es el error conocido
-                    string = i18nutils.translate(pair_values[1])
+                    known_error = pair_values[1]
                     break
 
-        return string
+        return known_error
 
 
 def catch_exceptions(function):
@@ -106,7 +106,7 @@ class ErrorHandler(type):
         # dinámicamente
         for attr_name, attr_value in attrs.items():
             # si es una función, le añado el decorador
-            if isinstance(attr_value, types.FunctionType) or isinstance(attr_value, types.MethodType): # noqa
+            if isinstance(attr_value, types.FunctionType) or isinstance(attr_value, types.MethodType):  # noqa
                 # descarto las funciones heredadas de object, que empiezan y acaban en "__"
                 if callable(attr_value) and not attr_name.startswith("__"):
                     # A la función le añado el decorador catch_exceptions

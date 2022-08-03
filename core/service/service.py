@@ -128,8 +128,8 @@ class BaseService(object, metaclass=ErrorHandler):
         return self._dao.find_last_entity()
 
     @service_method
-    def select(self):
-        return self._dao.select()
+    def select(self, filter_clause=None):
+        return self._dao.select(filter_clause)
 
 
 class ServiceFactory(object):
