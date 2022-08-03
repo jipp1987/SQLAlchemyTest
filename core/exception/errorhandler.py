@@ -79,12 +79,11 @@ def catch_exceptions(function):
             formatted_traceback_split = formatted_traceback.split("\n")
             error_line = None
 
-            # por si acaso compruebo el tamaño
-            if formatted_traceback_split is not None and len(formatted_traceback_split) > 4:
-                # Escapo las primeras líneas, porque siempre van a pertenecer al ErrorHandler y luego a la clase que lo
-                # tiene como metaclase. La línea donde se produce el error es la 4-5.
-                error_line = formatted_traceback_split[4:5]
-                error_line = error_line[0].strip()
+            # Sólo lo capturo si tiene al menos seis líneas
+            if formatted_traceback_split is not None and len(formatted_traceback_split) > 5:
+                # Muestro un par de líneas, por si acaso la función está envuelta en otra
+                # La primera línea la ignoro, es la del propio errorhandler
+                error_line = '\n'.join(formatted_traceback_split[2:6])
 
             # Elaboro el mensaje con la traza formateada, el tipo de error y el mensaje de error como tal
             message = '\n{0}\n{1}:\n{2}'.format(

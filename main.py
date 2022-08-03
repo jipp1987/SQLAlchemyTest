@@ -18,6 +18,6 @@ if __name__ == '__main__':
         service.create(nuevo)
         print(nuevo)
     except CustomException as e1:
-        print(e1.known_error)
+        print(e1.line)
     except Exception as e2:
         print(e2)
