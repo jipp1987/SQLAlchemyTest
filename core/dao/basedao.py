@@ -5,11 +5,12 @@ import threading
 from copy import deepcopy
 from typing import Dict, List
 
-from sqlalchemy import create_engine, select
+from sqlalchemy import create_engine, select, and_, or_
 from sqlalchemy.engine import Engine
 from sqlalchemy.orm import sessionmaker, declarative_base
+from sqlalchemy.sql import expression
 
-from core.dao.daotools import FilterClause, EnumFilterTypes
+from core.dao.daotools import FilterClause, EnumFilterTypes, EnumOperatorTypes
 
 _SQLEngineTypes = namedtuple('SQLEngineTypes', ['value', 'engine_name'])
 """Tupla para propiedades de EnumSQLEngineTypes. La uso para poder añadirle una propiedad al enumerado, aparte del 
@@ -249,35 +250,59 @@ class BaseDao(object, metaclass=abc.ABCMeta):
 
         return result
 
-    def select(self, filter_clauses: List[FilterClause] = None):
+    def __resolve_filter_clauses(self, filter_clauses: List[FilterClause], stmt) -> None:
+        """
+        Resuelve la cláuses WHERE de la consulta.
+        :param filter_clauses: Lista de filtros a resolver.
+        :param stmt: Expresión de la consulta de SQLAlchemy.
+        :return: None
+        """
+        for f in filter_clauses:
+            # Primero voy recuperando los campos por nombre de la entidad objetivo
+            field_to_filter_by = getattr(self.entity_type, f.field_name)
+            # Expresión a añadir
+            filter_expression: any = None
+
+            # Calcular operador de unión entre filtros
+            f_operator: expression = and_
+            if f.operator_type is not None and f.operator_type == EnumOperatorTypes.OR:
+                f_operator = or_
+
+            # Paréntesis: self_group
+
+            # Voy comprobando el tipo de filtro y construyendo la expresión de forma adecuada según los criterios de
+            # SQLAlchemy
+            if f.filter_type == EnumFilterTypes.EQUALS:
+                filter_expression = field_to_filter_by == f.object_to_compare
+            elif f.filter_type == EnumFilterTypes.NOT_EQUALS:
+                filter_expression = field_to_filter_by != f.object_to_compare
+            elif f.filter_type == EnumFilterTypes.LIKE or f.filter_type == EnumFilterTypes.NOT_LIKE:
+                # Si no incluye porcentaje, le añado yo uno al principio y al final
+                f.object_to_compare = f'%{f.object_to_compare}%' if "%" not in f.object_to_compare \
+                    else f.object_to_compare
+                filter_expression = field_to_filter_by.like(
+                    f.object_to_compare) if f.filter_type == EnumFilterTypes.LIKE \
+                    else field_to_filter_by.not_like(f.object_to_compare)
+
+            # Voy concatenando los filtros al statement
+            stmt = stmt.where(f_operator(filter_expression))
+
+    def select(self, filter_clauses: List[FilterClause] = None) -> List[BaseEntity]:
+        """
+        Hace una consulta a la base de datos.
+        """
         my_session = type(self).get_session_for_current_thread()
 
+        # Expresión de la consulta
         stmt = select(self.entity_type)
 
+        # Comprobar si hay filtros
         if filter_clauses:
-            for f in filter_clauses:
-                # Primero voy recuperando los campos por nombre de la entidad objetivo
-                field_to_filter_by = getattr(self.entity_type, f.field_name)
-                # Expresión a añadir
-                expression: any = None
-
-                # Voy comprobando el tipo de filtro y construyendo la expresión de forma adecuada según los criterios de
-                # SQLAlchemy
-                if f.filter_type == EnumFilterTypes.EQUALS:
-                    expression = field_to_filter_by == f.object_to_compare
-                elif f.filter_type == EnumFilterTypes.NOT_EQUALS:
-                    expression = field_to_filter_by != f.object_to_compare
-                elif f.filter_type == EnumFilterTypes.LIKE or f.filter_type == EnumFilterTypes.NOT_LIKE:
-                    # Si no incluye porcentaje, le añado yo uno al principio y al final
-                    f.object_to_compare = f'%{f.object_to_compare}%' if "%" not in f.object_to_compare \
-                        else f.object_to_compare
-                    expression = field_to_filter_by.like(f.object_to_compare) if f.filter_type == EnumFilterTypes.LIKE \
-                        else field_to_filter_by.not_like(f.object_to_compare)
-
-                # Voy concatenando los filtros al statement
-                stmt = stmt.where(expression)
+            self.__resolve_filter_clauses(filter_clauses=filter_clauses, stmt=stmt)
 
         stmt = stmt.order_by(self.entity_type.id.desc())
+
+        # Ejecutar la consulta
         result = my_session.execute(stmt).scalars().all()
 
         # Retiro los objetos de la sesión para poder trabajar con ellos desde fuera
