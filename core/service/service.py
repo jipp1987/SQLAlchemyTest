@@ -1,7 +1,8 @@
 import types
-from typing import Callable, Dict, Type
+from typing import Callable, Dict, Type, List
 
 from core.dao.basedao import BaseDao, BaseEntity
+from core.dao.daotools import FilterClause
 from core.exception.errorhandler import ErrorHandler
 
 
@@ -128,8 +129,8 @@ class BaseService(object, metaclass=ErrorHandler):
         return self._dao.find_last_entity()
 
     @service_method
-    def select(self, filter_clause=None):
-        return self._dao.select(filter_clause)
+    def select(self, filter_clauses: List[FilterClause] = None):
+        return self._dao.select(filter_clauses=filter_clauses)
 
 
 class ServiceFactory(object):
