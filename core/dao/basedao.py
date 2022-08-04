@@ -93,7 +93,7 @@ class BaseDao(object, metaclass=abc.ABCMeta):
         # Al crear un engine con la función create_engine(), se genera un pool QueuePool que viene configurado
         # como un pool de 5 conexiones como máximo por defecto; lo cambio para añadir unas cuantas más.
         cls.__sqlalchemy_engine = create_engine(f'{db_engine.engine_name}://{username}:{password}@'
-                                                f'{host}:{port}/{dbname}', pool_size=20, max_overflow=0)
+                                                f'{host}:{port}/{dbname}', pool_size=20, max_overflow=0, echo=True)
 
         # Inicializar el creador de sesiones (transacciones)
         cls.__session_maker = sessionmaker(bind=cls.__sqlalchemy_engine)
@@ -145,6 +145,10 @@ class BaseDao(object, metaclass=abc.ABCMeta):
         Hace commit de los cambios en la transacción asociada al hilo de ejecución.
         :return: None
         """
+        # Antes de hacer commit, hago un flush() para pasar cualquier cambio pendiente a la transacción y luego un
+        # expunge_all para liberar los objetos dentro de la sesión, para que se puedan utilizar desde fuera.
+        cls.get_session_for_current_thread().flush()
+        cls.get_session_for_current_thread().expunge_all()
         cls.get_session_for_current_thread().commit()
 
     @classmethod
@@ -161,12 +165,8 @@ class BaseDao(object, metaclass=abc.ABCMeta):
         Cierra la sesión del hilo de ejecución.
         :return: None
         """
-        my_session = cls.get_session_for_current_thread()
-
-        # Eliminar todos los objetos de la sesión
-        my_session.expunge_all()
         # Cerrar sesión
-        my_session.close()
+        cls.get_session_for_current_thread().close()
 
         # Eliminar sesión del mapa
         cls.__thread_session_dict.pop(cls.__get_current_thread())
@@ -420,8 +420,9 @@ class BaseDao(object, metaclass=abc.ABCMeta):
             # sus objetos estarían ya caducados en la sesión y se produciría un error.
             my_session.expunge(registry)
 
+        # OJO!!! En principio no voy a hacer esto pero mantengo el código de arriba por si acaso.
         # Liberar de la sesión todos los objetos traídos en la consulta.
-        for r in result:
-            __expunge_select_result(r)
+        # for r in result:
+        #    __expunge_select_result(r)
 
         return result
