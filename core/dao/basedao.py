@@ -260,24 +260,34 @@ class BaseDao(object, metaclass=abc.ABCMeta):
         # Contenido final del filtro en forma de listado que se va a añadir al statement
         filter_content = []
 
-        for filter_q in filter_clauses:
+        def __inner_resolve_filter_clauses(field_clause: FilterClause):
+            """
+            Utilizo esta función interna para resolver los filtros anidados en otros filtros (aquéllos que van a ir
+            dentro de un mismo paréntesis).
+            :param field_clause:
+            :return: None
+            """
             # Primero voy recuperando los campos por nombre de la entidad objetivo
-            field_to_filter_by = getattr(self.entity_type, filter_q.field_name)
+            field_to_filter_by = getattr(self.entity_type, field_clause.field_name)
 
             # Calcular operador de unión entre filtros
             f_operator: expression = and_
-            if filter_q.operator_type is not None and filter_q.operator_type == EnumOperatorTypes.OR:
+            if field_clause.operator_type is not None and field_clause.operator_type == EnumOperatorTypes.OR:
                 f_operator = or_
 
             # Paréntesis: si el atributo related_filter_clauses no está vacío, significa que la cláusula está
             # unida a otras dentro de un paréntesis.
             # Creo dos listas, una iniciada con el filtro principal
-            inner_filter_list = [filter_q]
+            inner_filter_list = [field_clause]
+
+            has_related_filters: bool = False
 
             # Si tiene filtros asociados, los añado a la lista interna de filtros para tratarlos todos como uno sólo,
             # de tal manera que estarán todos dentro de un paréntesis
-            if filter_q.related_filter_clauses:
-                for related_filter in filter_q.related_filter_clauses:
+            if field_clause.related_filter_clauses:
+                has_related_filters = True
+
+                for related_filter in field_clause.related_filter_clauses:
                     inner_filter_list.append(related_filter)
 
             # Lista final de expresiones que se añadirán al operador al final
@@ -295,6 +305,14 @@ class BaseDao(object, metaclass=abc.ABCMeta):
                     filter_expression = field_to_filter_by == f.object_to_compare
                 elif f.filter_type == EnumFilterTypes.NOT_EQUALS:
                     filter_expression = field_to_filter_by != f.object_to_compare
+                elif f.filter_type == EnumFilterTypes.GREATER_THAN:
+                    filter_expression = field_to_filter_by > f.object_to_compare
+                elif f.filter_type == EnumFilterTypes.LESS_THAN:
+                    filter_expression = field_to_filter_by < f.object_to_compare
+                elif f.filter_type == EnumFilterTypes.GREATER_THAN_OR_EQUALS:
+                    filter_expression = field_to_filter_by >= f.object_to_compare
+                elif f.filter_type == EnumFilterTypes.LESS_THAN_OR_EQUALS:
+                    filter_expression = field_to_filter_by <= f.object_to_compare
                 elif f.filter_type == EnumFilterTypes.LIKE or f.filter_type == EnumFilterTypes.NOT_LIKE:
                     # Si no incluye porcentaje, le añado yo uno al principio y al final
                     f.object_to_compare = f'%{f.object_to_compare}%' if "%" not in f.object_to_compare \
@@ -302,16 +320,33 @@ class BaseDao(object, metaclass=abc.ABCMeta):
                     filter_expression = field_to_filter_by.like(
                         f.object_to_compare) if f.filter_type == EnumFilterTypes.LIKE \
                         else field_to_filter_by.not_like(f.object_to_compare)
+                elif f.filter_type == EnumFilterTypes.IN:
+                    filter_expression = field_to_filter_by.in_(f.object_to_compare)
+                elif f.filter_type == EnumFilterTypes.NOT_IN:
+                    filter_expression = ~field_to_filter_by.in_(f.object_to_compare)
+                elif f.filter_type == EnumFilterTypes.STARTS_WITH:
+                    f.object_to_compare = f'{f.object_to_compare}%' if not f.object_to_compare.endswith("%") \
+                        else f.object_to_compare
+                    filter_expression = field_to_filter_by.like(f.object_to_compare)
+                elif f.filter_type == EnumFilterTypes.ENDS_WITH:
+                    f.object_to_compare = f'%{f.object_to_compare}' if not f.object_to_compare.startswith("%") \
+                        else f.object_to_compare
+                    filter_expression = field_to_filter_by.like(f.object_to_compare)
 
+                # Voy añadiendo el contenido del filtro a la lista final de expresiones
                 inner_expression_list.append(filter_expression)
 
             # Si tiene filtros asociados, hay que utilizar al final self_group para que los relacione dentro de un
             # mismo paréntesis
-            if filter_q.related_filter_clauses:
-                filter_content.append(f_operator(*inner_expression_list).self_group())
-            else:
-                filter_content.append(f_operator(*inner_expression_list))
+            filter_content.append(f_operator(*inner_expression_list).self_group()) if has_related_filters \
+                else filter_content.append(f_operator(*inner_expression_list))
 
+        # Hago el proceso para cada filtro del listado, para controlar los filtros anidados en otros (relacionados
+        # entre por paréntesis)
+        for filter_q in filter_clauses:
+            __inner_resolve_filter_clauses(filter_q)
+
+        # Añado el contenido final del filtro a la cláusula where del statement
         return stmt.where(*filter_content)
 
     def select(self, filter_clauses: List[FilterClause] = None) -> List[BaseEntity]:
