@@ -405,7 +405,8 @@ class BaseDao(object, metaclass=abc.ABCMeta):
             """Función para liberar objetos desde sesión. La declaro como función interna para poder liberar los
             objetos de forma recursiva en caso de que tengan anidados otros modelos de datos de forma relacional."""
             # Compruebo si el objeto tiene otras entidades de modelo de datos anidadas
-            for att in dir(registry):
+            # Con la siguiente línea obtengo todos los atributos mapeados por SQLAlchemy, incluyendo las relaciones.
+            for att in registry.__mapper__.attrs.keys():
                 att_value = getattr(registry, att)
 
                 # Si es otra entidad, llamo de forma recursiva a esta función interna para liberar todos los objetos de
