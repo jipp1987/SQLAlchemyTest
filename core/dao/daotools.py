@@ -43,6 +43,41 @@ class EnumOperatorTypes(enum.Enum):
     OR = OperatorType(2, 'OR')
 
 
+# ORDER BYs
+OrderByType = namedtuple('OrderByType', ['value', 'order_by_keyword'])
+"""Tupla para propiedades de EnumOrderByTypes. La uso para poder añadirle una propiedad al enumerado, aparte del propio
+valor."""
+
+
+class EnumOrderByTypes(enum.Enum):
+    """Enumerado de tipos de OrderBy."""
+
+    @property
+    def order_by_keyword(self):
+        return self.value.order_by_keyword
+
+    ASC = OrderByType(1, 'ASC')
+    DESC = OrderByType(2, 'DESC')
+
+
+# JOINS
+JoinType = namedtuple('JoinType', ['value', 'join_keyword'])
+"""Tupla para propiedades de EnumJoinTypes. La uso para poder añadirle una propiedad al enumerado, aparte del propio
+valor."""
+
+
+class EnumJoinTypes(enum.Enum):
+    """Enumerado de tipos de OrderBy."""
+
+    @property
+    def join_keyword(self):
+        return self.value.join_keyword
+
+    INNER_JOIN = JoinType(1, 'INNER JOIN')
+    LEFT_JOIN = JoinType(2, 'LEFT JOIN')
+    RIGHT_JOIN = JoinType(3, 'RIGHT JOIN')
+
+
 AggregateFunction = namedtuple('AggregateFunction', ['value', 'function_keyword'])
 """Tupla para propiedades de EnumAggregateFunctions. La uso para poder añadirle una propiedad al enumerado, 
 aparte del propio valor."""
@@ -61,7 +96,7 @@ class EnumAggregateFunctions(enum.Enum):
 
 
 class FilterClause(object):
-    """Clase para modelado de cláusulas WHERE para MySQL."""
+    """Clase para modelado de cláusulas WHERE."""
 
     def __init__(self, field_name: str, filter_type: (EnumFilterTypes, str), object_to_compare: any,
                  operator_type: (EnumOperatorTypes, str) = None, related_filter_clauses: list = None):
@@ -77,3 +112,32 @@ class FilterClause(object):
         self.related_filter_clauses = related_filter_clauses
         """Lista de otros FilterClause relacionados con éste. Se utiliza para filtros que van todos juntos 
         dentro de un paréntesis."""
+
+
+class JoinClause(object):
+    """Clase para modelado de cláusulas JOIN."""
+
+    def __init__(self, table_name: str, join_type: (EnumJoinTypes, str)):
+        self.table_name = table_name
+        """Nombre de la tabla hacia la que se va a hacer join."""
+        self.join_type = join_type if isinstance(join_type, EnumJoinTypes) else EnumJoinTypes[join_type]
+        """Tipo de cláusula JOIN."""
+
+
+class GroupByClause(object):
+    """Clase para modelado de cláusulas GROUP BY."""
+
+    def __init__(self, field_name: str):
+        self.field_name = field_name
+        """Nombre del campo sobre el que se va a aplicar la cláusula group by."""
+
+
+class OrderByClause(object):
+    """Clase para modelado de cláusulas ORDER BY."""
+
+    def __init__(self, field_name: str, order_by_type: (EnumOrderByTypes, str)):
+        self.field_name = field_name
+        """Nombre del campo."""
+        self.order_by_type = order_by_type if isinstance(order_by_type, EnumOrderByTypes) \
+            else EnumOrderByTypes[order_by_type]
+        """Tipo de cláusula ORDER BY."""

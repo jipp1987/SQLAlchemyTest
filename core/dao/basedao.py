@@ -10,7 +10,7 @@ from sqlalchemy.engine import Engine
 from sqlalchemy.orm import sessionmaker, declarative_base
 from sqlalchemy.sql import expression
 
-from core.dao.daotools import FilterClause, EnumFilterTypes, EnumOperatorTypes
+from core.dao.daotools import FilterClause, EnumFilterTypes, EnumOperatorTypes, JoinClause, EnumJoinTypes
 
 _SQLEngineTypes = namedtuple('SQLEngineTypes', ['value', 'engine_name'])
 """Tupla para propiedades de EnumSQLEngineTypes. La uso para poder añadirle una propiedad al enumerado, aparte del 
@@ -250,7 +250,7 @@ class BaseDao(object, metaclass=abc.ABCMeta):
 
         return result
 
-    def __resolve_filter_clauses(self, filter_clauses: List[FilterClause], stmt) -> any:
+    def __resolve_filter_clauses(self, filter_clauses: List[FilterClause], stmt):
         """
         Resuelve el contenido de los filtros.
         :param stmt: Statement al que se le van a añadir los filtros.
@@ -349,18 +349,47 @@ class BaseDao(object, metaclass=abc.ABCMeta):
         # Añado el contenido final del filtro a la cláusula where del statement
         return stmt.where(*filter_content)
 
-    def select(self, filter_clauses: List[FilterClause] = None) -> List[BaseEntity]:
+    def __resolve_join_clause(self, join_clauses: List[JoinClause], stmt):
+        """
+        Resuelve la cláusula join.
+        :param join_clauses: Lista de cláusulas join.
+        :returns: Statement SQL con los joins añadidos.
+        """
+        fields_to_join: list = []
+
+        for j in join_clauses:
+            # Comprobar el tipo de join
+            if j.join_type == EnumJoinTypes.LEFT_JOIN:
+                fields_to_join.append((j.table_name, None, True, False))
+            elif j.join_type == EnumJoinTypes.RIGHT_JOIN:
+                is_outer = True
+                fields_to_join.append((j.table_name, self.entity_type, is_outer))
+            else:
+                fields_to_join.append(j.table_name)
+
+        return stmt.join(*fields_to_join)
+
+    def select(self, filter_clauses: List[FilterClause] = None, join_clauses: List[JoinClause] = None) \
+            -> List[BaseEntity]:
         """
         Hace una consulta a la base de datos.
         """
         my_session = type(self).get_session_for_current_thread()
 
         # Expresión de la consulta
-        stmt = select(self.entity_type)
+        table_list = [self.entity_type]
+        if join_clauses:
+            for j in join_clauses:
+                table_list.append(j.table_name)
 
-        # Comprobar si hay filtros
+        stmt = select(*table_list)
+
+        # Resolver cláusula join
+        if join_clauses:
+            stmt = self.__resolve_join_clause(join_clauses=join_clauses, stmt=stmt)
+
+        # Resolver cláusula where
         if filter_clauses:
-            # Resolver filtros
             stmt = self.__resolve_filter_clauses(filter_clauses=filter_clauses, stmt=stmt)
 
         stmt = stmt.order_by(self.entity_type.id.desc())
@@ -372,7 +401,24 @@ class BaseDao(object, metaclass=abc.ABCMeta):
         result = my_session.execute(stmt).scalars().all()
 
         # Retiro los objetos de la sesión para poder trabajar con ellos desde fuera
+        def __expunge_select_result(registry):
+            """Función para liberar objetos desde sesión. La declaro como función interna para poder liberar los
+            objetos de forma recursiva en caso de que tengan anidados otros modelos de datos de forma relacional."""
+            # Compruebo si el objeto tiene otras entidades de modelo de datos anidadas
+            for att in dir(registry):
+                att_value = getattr(registry, att)
+
+                # Si es otra entidad, llamo de forma recursiva a esta función interna para liberar todos los objetos de
+                # la DB.
+                if att_value is not None and issubclass(type(att_value), BaseEntity):
+                    __expunge_select_result(att_value)
+
+            # Importante liberar al objeto principal después de liberar a los asociados, si lo liberase antes todos
+            # sus objetos estarían ya caducados en la sesión y se produciría un error.
+            my_session.expunge(registry)
+
+        # Liberar de la sesión todos los objetos traídos en la consulta.
         for r in result:
-            my_session.expunge(r)
+            __expunge_select_result(r)
 
         return result
