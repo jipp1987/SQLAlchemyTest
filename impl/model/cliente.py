@@ -23,9 +23,9 @@ class Cliente(BaseEntity):
     tipoclienteid = Column(Integer, ForeignKey('tiposcliente.id'), nullable=True)
 
     # Relaciones con otras tablas
-    usuario_creacion = relationship(Usuario.__name__, foreign_keys=[usuariocreacionid])
-    usuario_ult_mod = relationship(Usuario.__name__, foreign_keys=[usuarioultmodid])
-    tipo_cliente = relationship(TipoCliente.__name__, foreign_keys=[tipoclienteid])
+    usuario_creacion = relationship(Usuario.__name__, foreign_keys=[usuariocreacionid], lazy="select")
+    usuario_ult_mod = relationship(Usuario.__name__, foreign_keys=[usuarioultmodid], lazy="select")
+    tipo_cliente = relationship(TipoCliente.__name__, foreign_keys=[tipoclienteid], lazy="select")
 
     # Constructor
     def __init__(self, **kwargs):

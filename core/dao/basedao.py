@@ -406,12 +406,14 @@ class BaseDao(object, metaclass=abc.ABCMeta):
             objetos de forma recursiva en caso de que tengan anidados otros modelos de datos de forma relacional."""
             # Compruebo si el objeto tiene otras entidades de modelo de datos anidadas
             # Con la siguiente línea obtengo todos los atributos mapeados por SQLAlchemy, incluyendo las relaciones.
-            for att in registry.__mapper__.attrs.keys():
-                att_value = getattr(registry, att)
+            for att in registry.__mapper__.relationships:
+                rel_field_name = att.key
+                rel_field_class = att.mapper.class_
+                att_value = getattr(registry, rel_field_name)
 
                 # Si es otra entidad, llamo de forma recursiva a esta función interna para liberar todos los objetos de
-                # la DB.
-                if att_value is not None and issubclass(type(att_value), BaseEntity):
+                # la DB. Importante comprobar que estén presentes en la sesión para evitar problemas con objetos lazy.
+                if att_value is not None and issubclass(rel_field_class, BaseEntity) and att_value in my_session:
                     __expunge_select_result(att_value)
 
             # Importante liberar al objeto principal después de liberar a los asociados, si lo liberase antes todos
