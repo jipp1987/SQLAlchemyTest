@@ -19,8 +19,8 @@ class TipoCliente(BaseEntity):
     usuarioultmodid = Column(Integer, ForeignKey("usuarios.id"), nullable=True)
 
     # Relaciones con otras tablas
-    usuario_creacion = relationship(Usuario.__name__, foreign_keys=[usuariocreacionid], lazy="select")
-    usuario_ult_mod = relationship(Usuario.__name__, foreign_keys=[usuarioultmodid], lazy="select")
+    usuario_creacion = relationship(Usuario.__name__, foreign_keys=[usuariocreacionid], lazy="raise")
+    usuario_ult_mod = relationship(Usuario.__name__, foreign_keys=[usuarioultmodid], lazy="raise")
 
     # Constructor
     def __init__(self, **kwargs):

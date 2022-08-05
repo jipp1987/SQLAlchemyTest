@@ -32,10 +32,11 @@ def query_2():
 
     joins: List[JoinClause] = [JoinClause(table_name=TipoCliente, join_type=EnumJoinTypes.INNER_JOIN)]
 
-    result = service.select(join_clauses=joins)
+    # result = service.select(join_clauses=joins)
+    result = service.select_all()
 
-    for r in result:
-        print(r)
+    #for r in result:
+    #    print(r)
 
 
 if __name__ == '__main__':

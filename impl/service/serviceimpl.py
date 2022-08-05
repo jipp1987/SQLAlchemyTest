@@ -1,5 +1,8 @@
-from core.service.service import BaseService
+from typing import List
+
+from core.service.service import BaseService, service_method
 from impl.dao.daoimpl import ClienteDaoImpl, TipoClienteDaoImpl, UsuarioDaoImpl
+from impl.model.cliente import Cliente
 
 
 class ClienteServiceImpl(BaseService):
@@ -7,6 +10,10 @@ class ClienteServiceImpl(BaseService):
 
     def __init__(self):
         super().__init__(dao=ClienteDaoImpl())
+
+    @service_method
+    def select_all(self) -> List[Cliente]:
+        return self._dao.select_all()
 
 
 class TipoClienteServiceImpl(BaseService):

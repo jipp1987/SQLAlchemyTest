@@ -5,7 +5,7 @@ import threading
 from copy import deepcopy
 from typing import Dict, List
 
-from sqlalchemy import create_engine, select, and_, or_
+from sqlalchemy import create_engine, select, and_, or_, join
 from sqlalchemy.engine import Engine
 from sqlalchemy.orm import sessionmaker, declarative_base
 from sqlalchemy.sql import expression
@@ -367,7 +367,7 @@ class BaseDao(object, metaclass=abc.ABCMeta):
             else:
                 fields_to_join.append(j.table_name)
 
-        return stmt.join(*fields_to_join)
+        return stmt.select_from(join(self.entity_type, join_clauses[0].table_name))
 
     def select(self, filter_clauses: List[FilterClause] = None, join_clauses: List[JoinClause] = None) \
             -> List[BaseEntity]:
@@ -392,13 +392,17 @@ class BaseDao(object, metaclass=abc.ABCMeta):
         if filter_clauses:
             stmt = self.__resolve_filter_clauses(filter_clauses=filter_clauses, stmt=stmt)
 
-        stmt = stmt.order_by(self.entity_type.id.desc())
+       # stmt = stmt.order_by(self.entity_type.id.desc())
 
         # DEPURACIÓN
-        print(f"{str(stmt)}\n")
+        print(f"QUERY: {str(stmt)}\n")
 
         # Ejecutar la consulta
-        result = my_session.execute(stmt).scalars().all()
+        result = my_session.execute(stmt).scalars().fetchall()
+
+        print("\n\n\n")
+
+        print(result[0].tipo_cliente)
 
         # Retiro los objetos de la sesión para poder trabajar con ellos desde fuera
         def __expunge_select_result(registry):
@@ -424,5 +428,9 @@ class BaseDao(object, metaclass=abc.ABCMeta):
         # Liberar de la sesión todos los objetos traídos en la consulta.
         # for r in result:
         #    __expunge_select_result(r)
+
+        # Para evitar problemas, hago flush y libero todos los elementos
+        my_session.flush()
+        my_session.expunge_all()
 
         return result
