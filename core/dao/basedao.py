@@ -3,11 +3,11 @@ import enum
 from collections import namedtuple
 import threading
 from copy import deepcopy
-from typing import Dict, List
+from typing import Dict, List, Union
 
-from sqlalchemy import create_engine, select, and_, or_, join
+from sqlalchemy import create_engine, select, and_, or_
 from sqlalchemy.engine import Engine
-from sqlalchemy.orm import sessionmaker, declarative_base
+from sqlalchemy.orm import sessionmaker, declarative_base, contains_eager
 from sqlalchemy.sql import expression
 
 from core.dao.daotools import FilterClause, EnumFilterTypes, EnumOperatorTypes, JoinClause, EnumJoinTypes
@@ -355,19 +355,29 @@ class BaseDao(object, metaclass=abc.ABCMeta):
         :param join_clauses: Lista de cláusulas join.
         :returns: Statement SQL con los joins añadidos.
         """
-        fields_to_join: list = []
 
         for j in join_clauses:
+            relationship_to_join_class: Union[type, None] = None
+            relationship_to_join = getattr(self.entity_type, j.relationship_field_name)
+
+            # Examino las relaciones de la clase para obtener el tipo, lo voy a necesitar para los joins de entidades
+            # anidadas en otras
+            for att in self.entity_type.__mapper__.relationships:
+                rel_field_name = att.key
+                if rel_field_name == j.relationship_field_name:
+                    relationship_to_join_class = att.mapper.class_
+                    break
+
+            print(relationship_to_join_class)
+
             # Comprobar el tipo de join
             if j.join_type == EnumJoinTypes.LEFT_JOIN:
-                fields_to_join.append((j.table_name, None, True, False))
-            elif j.join_type == EnumJoinTypes.RIGHT_JOIN:
-                is_outer = True
-                fields_to_join.append((j.table_name, self.entity_type, is_outer))
+                # Importante añadir una opción para forzar que traiga la relación cargada en el objeto
+                stmt = stmt.outerjoin(relationship_to_join).options(contains_eager(relationship_to_join))
             else:
-                fields_to_join.append(j.table_name)
+                stmt = stmt.join(relationship_to_join).options(contains_eager(relationship_to_join))
 
-        return stmt.select_from(join(self.entity_type, join_clauses[0].table_name))
+        return stmt
 
     def select(self, filter_clauses: List[FilterClause] = None, join_clauses: List[JoinClause] = None) \
             -> List[BaseEntity]:
@@ -377,12 +387,7 @@ class BaseDao(object, metaclass=abc.ABCMeta):
         my_session = type(self).get_session_for_current_thread()
 
         # Expresión de la consulta
-        table_list = [self.entity_type]
-        if join_clauses:
-            for j in join_clauses:
-                table_list.append(j.table_name)
-
-        stmt = select(*table_list)
+        stmt = select(self.entity_type)
 
         # Resolver cláusula join
         if join_clauses:
@@ -392,42 +397,17 @@ class BaseDao(object, metaclass=abc.ABCMeta):
         if filter_clauses:
             stmt = self.__resolve_filter_clauses(filter_clauses=filter_clauses, stmt=stmt)
 
-       # stmt = stmt.order_by(self.entity_type.id.desc())
+        stmt = stmt.order_by(self.entity_type.id.desc())
 
         # DEPURACIÓN
         print(f"QUERY: {str(stmt)}\n")
 
         # Ejecutar la consulta
-        result = my_session.execute(stmt).scalars().fetchall()
+        result = my_session.execute(stmt).scalars().all()
 
         print("\n\n\n")
 
         print(result[0].tipo_cliente)
-
-        # Retiro los objetos de la sesión para poder trabajar con ellos desde fuera
-        def __expunge_select_result(registry):
-            """Función para liberar objetos desde sesión. La declaro como función interna para poder liberar los
-            objetos de forma recursiva en caso de que tengan anidados otros modelos de datos de forma relacional."""
-            # Compruebo si el objeto tiene otras entidades de modelo de datos anidadas
-            # Con la siguiente línea obtengo todos los atributos mapeados por SQLAlchemy, incluyendo las relaciones.
-            for att in registry.__mapper__.relationships:
-                rel_field_name = att.key
-                rel_field_class = att.mapper.class_
-                att_value = getattr(registry, rel_field_name)
-
-                # Si es otra entidad, llamo de forma recursiva a esta función interna para liberar todos los objetos de
-                # la DB. Importante comprobar que estén presentes en la sesión para evitar problemas con objetos lazy.
-                if att_value is not None and issubclass(rel_field_class, BaseEntity) and att_value in my_session:
-                    __expunge_select_result(att_value)
-
-            # Importante liberar al objeto principal después de liberar a los asociados, si lo liberase antes todos
-            # sus objetos estarían ya caducados en la sesión y se produciría un error.
-            my_session.expunge(registry)
-
-        # OJO!!! En principio no voy a hacer esto pero mantengo el código de arriba por si acaso.
-        # Liberar de la sesión todos los objetos traídos en la consulta.
-        # for r in result:
-        #    __expunge_select_result(r)
 
         # Para evitar problemas, hago flush y libero todos los elementos
         my_session.flush()

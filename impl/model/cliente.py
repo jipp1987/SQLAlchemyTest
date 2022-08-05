@@ -20,7 +20,7 @@ class Cliente(BaseEntity):
 
     usuariocreacionid = Column(Integer, ForeignKey("usuarios.id"), nullable=True)
     usuarioultmodid = Column(Integer, ForeignKey("usuarios.id"), nullable=True)
-    tipoclienteid = Column(Integer, ForeignKey('tiposcliente.id'), nullable=True)
+    tipoclienteid = Column(Integer, ForeignKey('tiposcliente.id'), nullable=False)
 
     # Relaciones con otras tablas
     usuario_creacion = relationship(Usuario.__name__, foreign_keys=[usuariocreacionid], lazy="raise")
@@ -58,5 +58,4 @@ class Cliente(BaseEntity):
 
     # tostring
     def __repr__(self):
-        return f'id = {self.id}, codigo = {self.codigo}, nombre = {self.nombre}, apellidos = {self.apellidos}, ' \
-               f'tipo_cliente = {self.tipo_cliente.id if self.tipo_cliente is not None else ""}'
+        return f'id = {self.id}, codigo = {self.codigo}, nombre = {self.nombre}, apellidos = {self.apellidos}'

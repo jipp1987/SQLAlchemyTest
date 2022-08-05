@@ -75,7 +75,6 @@ class EnumJoinTypes(enum.Enum):
 
     INNER_JOIN = JoinType(1, 'INNER JOIN')
     LEFT_JOIN = JoinType(2, 'LEFT JOIN')
-    RIGHT_JOIN = JoinType(3, 'RIGHT JOIN')
 
 
 AggregateFunction = namedtuple('AggregateFunction', ['value', 'function_keyword'])
@@ -117,9 +116,9 @@ class FilterClause(object):
 class JoinClause(object):
     """Clase para modelado de cláusulas JOIN."""
 
-    def __init__(self, table_name: str, join_type: (EnumJoinTypes, str)):
-        self.table_name = table_name
-        """Nombre de la tabla hacia la que se va a hacer join."""
+    def __init__(self, relationship_field_name: str, join_type: (EnumJoinTypes, str)):
+        self.relationship_field_name = relationship_field_name
+        """Nombre del campo de la relación entre entidades sobre la que se quiere hacer join."""
         self.join_type = join_type if isinstance(join_type, EnumJoinTypes) else EnumJoinTypes[join_type]
         """Tipo de cláusula JOIN."""
 

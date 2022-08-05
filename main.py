@@ -4,7 +4,6 @@ from core.dao.basedao import BaseDao
 from core.dao.daotools import FilterClause, EnumFilterTypes, EnumOperatorTypes, JoinClause, EnumJoinTypes
 from core.service.service import ServiceFactory
 from core.utils.fileutils import read_section_in_ini_file
-from impl.model.tipocliente import TipoCliente
 from impl.service.serviceimpl import TipoClienteServiceImpl, ClienteServiceImpl
 
 
@@ -30,13 +29,15 @@ def query_1():
 def query_2():
     service = ServiceFactory.get_service(ClienteServiceImpl)
 
-    joins: List[JoinClause] = [JoinClause(table_name=TipoCliente, join_type=EnumJoinTypes.INNER_JOIN)]
+    joins: List[JoinClause] = [
+        JoinClause(relationship_field_name="tipo_cliente", join_type=EnumJoinTypes.INNER_JOIN),
+    JoinClause(relationship_field_name="usuario_creacion", join_type=EnumJoinTypes.LEFT_JOIN)]
 
-    # result = service.select(join_clauses=joins)
-    result = service.select_all()
+    result = service.select(join_clauses=joins)
+    # result = service.select_all()
 
-    #for r in result:
-    #    print(r)
+    for r in result:
+        print(f"Tipo cliente: {r.tipo_cliente} -------- Usuario creación: {r.usuario_creacion}")
 
 
 if __name__ == '__main__':
