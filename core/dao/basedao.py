@@ -399,15 +399,8 @@ class BaseDao(object, metaclass=abc.ABCMeta):
 
         stmt = stmt.order_by(self.entity_type.id.desc())
 
-        # DEPURACIÓN
-        print(f"QUERY: {str(stmt)}\n")
-
         # Ejecutar la consulta
         result = my_session.execute(stmt).scalars().all()
-
-        print("\n\n\n")
-
-        print(result[0].tipo_cliente)
 
         # Para evitar problemas, hago flush y libero todos los elementos
         my_session.flush()
