@@ -116,11 +116,13 @@ class FilterClause(object):
 class JoinClause(object):
     """Clase para modelado de cláusulas JOIN."""
 
-    def __init__(self, relationship_field_name: str, join_type: (EnumJoinTypes, str)):
+    def __init__(self, relationship_field_name: str, join_type: (EnumJoinTypes, str), is_join_with_fetch: bool = False):
         self.relationship_field_name = relationship_field_name
         """Nombre del campo de la relación entre entidades sobre la que se quiere hacer join."""
         self.join_type = join_type if isinstance(join_type, EnumJoinTypes) else EnumJoinTypes[join_type]
         """Tipo de cláusula JOIN."""
+        self.is_join_with_fetch = is_join_with_fetch
+        """Indica si el join va a traer todos los campos de la tabla."""
 
 
 class GroupByClause(object):

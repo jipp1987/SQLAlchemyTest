@@ -40,7 +40,7 @@ BaseEntity = declarative_base()
 class _SQLModelHelper(object):
     """Clase auxiliar para tener mejor identificados los distintos atributos relacionados con los alias de los
     campos que deben utilizarse en la consulta."""
-    model_type: str
+    model_type: type
     model_alias: any
     model_field: any
 
@@ -277,26 +277,7 @@ class BaseDao(object, metaclass=abc.ABCMeta):
         # tablas involucradas en la query. Esto es importante para consultas en las que se hace join más de una vez
         # sobre una misma tabla.
         if join_clauses:
-            for j in join_clauses:
-                relationship_to_join_class: Union[type, None] = None
-
-                # Es posible que sea una entidad anidada en otra, separadas por un punto
-                if "." in j.relationship_field_name:
-                    rel_split = j.relationship_field_name.split(".")
-                else:
-                    # Si no es el caso, asumimos que pertenece a la entidad principal del dao
-                    relationship_to_join_value: any = getattr(self.entity_type, j.relationship_field_name)
-
-                # Busco el tipo de entidad para generar un alias. Utilizo el mapa de relaciones de la propia entidad.
-                for att in self.entity_type.__mapper__.relationships:
-                    rel_field_name = att.key
-                    if rel_field_name == j.relationship_field_name:
-                        relationship_to_join_class = att.mapper.class_
-                        break
-
-                # Calculo el alias y lo añado al diccionario, siendo la clave el nombre del campo del join
-                alias = aliased(relationship_to_join_class)
-                aliases_dict[j.relationship_field_name] = alias
+            self.__resolve_field_aliases(join_clauses=join_clauses, aliases_dict=aliases_dict)
 
         # Expresión de la consulta
         stmt = select(self.entity_type)
@@ -425,22 +406,65 @@ class BaseDao(object, metaclass=abc.ABCMeta):
         :param join_clauses: Lista de cláusulas join.
         :returns: Statement SQL con los joins añadidos.
         """
-
         for j in join_clauses:
             # Obtengo el atributo en sí para forzar el fetch
             relationship_to_join = getattr(self.entity_type, j.relationship_field_name)
             # Recupero el alias calculado anteriormente
-            alias = alias_dict[j.relationship_field_name]
+            alias = alias_dict[j.relationship_field_name].model_alias
 
             # Comprobar el tipo de join
             if j.join_type == EnumJoinTypes.LEFT_JOIN:
                 # Importante añadir una opción para forzar que traiga la relación cargada en el objeto
-                # OJO!!! Importante utilizar "of_type(alias)" para que sea capaz de resolver el alias asignado
-                # a cada tabla.
-                stmt = stmt.outerjoin(relationship_to_join.of_type(alias)).\
-                    options(contains_eager(relationship_to_join.of_type(alias)))
+                stmt = stmt.outerjoin(relationship_to_join.of_type(alias))
             else:
-                stmt = stmt.join(relationship_to_join.of_type(alias)).\
-                    options(contains_eager(relationship_to_join.of_type(alias)))
+                stmt = stmt.join(relationship_to_join.of_type(alias))
+
+            # Si tiene fetch, añadir una opción para traerte todos los campos para rellenar el objeto relation_ship.
+            # OJO!!! Importante utilizar "of_type(alias)" para que sea capaz de resolver el alias asignado
+            # a cada tabla.
+            if j.is_join_with_fetch:
+                stmt = stmt.options(contains_eager(relationship_to_join.of_type(alias)))
 
         return stmt
+
+    def __resolve_field_aliases(self, join_clauses: List[JoinClause], aliases_dict: dict) -> None:
+        """
+        Resuelve los alias de las tablas de la consulta.
+        :param join_clauses: Lista de cláusulas join.
+        :param aliases_dict: Diccionario clave-valor para contener la información.
+        :return: None
+        """
+        # Creo un namedtuple para la operación de ordenación. La idea es separar los campos por el separador "." y
+        # ordenarlos en función del tamaño del array resultante, así los campos más anidados estarán al final y el
+        # diccionario siempre contendrá a sus "padres" antes de tratarlo.
+        join_sorted = namedtuple("join_sorted", ["length", "join_clause"])
+        join_sorted_list: List[join_sorted] = []
+
+        # Primera pasada para ordenar las join_clauses
+        for j in join_clauses:
+            rel_split = j.relationship_field_name.split(".")
+            join_sorted_list.append(join_sorted(length=len(rel_split), join_clause=j))
+
+        # Ordenar la lista en función del número de elementos
+        join_sorted_list = sorted(join_sorted_list, key=lambda x: x.length, reverse=False)
+
+        for i in join_sorted_list:
+            j = i.join_clause
+            relationship_to_join_class: Union[type, None] = None
+
+            # Si no es el caso, asumimos que pertenece a la entidad principal del dao
+            relationship_to_join_value: any = getattr(self.entity_type, j.relationship_field_name)
+
+            # Busco el tipo de entidad para generar un alias. Utilizo el mapa de relaciones de la propia entidad.
+            for att in self.entity_type.__mapper__.relationships:
+                rel_field_name = att.key
+                if rel_field_name == j.relationship_field_name:
+                    relationship_to_join_class = att.mapper.class_
+                    break
+
+            # Calculo el alias y lo añado al diccionario, siendo la clave el nombre del campo del join
+            alias = aliased(relationship_to_join_class)
+            # Añado un objeto al mapa para tener mejor controlados estos datos
+            aliases_dict[j.relationship_field_name] = _SQLModelHelper(model_type=relationship_to_join_class,
+                                                                      model_alias=alias,
+                                                                      model_field=relationship_to_join_value)
