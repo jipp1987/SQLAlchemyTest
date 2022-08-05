@@ -7,7 +7,7 @@ from typing import Dict, List, Union
 
 from sqlalchemy import create_engine, select, and_, or_
 from sqlalchemy.engine import Engine
-from sqlalchemy.orm import sessionmaker, declarative_base, contains_eager
+from sqlalchemy.orm import sessionmaker, declarative_base, contains_eager, aliased
 from sqlalchemy.sql import expression
 
 from core.dao.daotools import FilterClause, EnumFilterTypes, EnumOperatorTypes, JoinClause, EnumJoinTypes
@@ -349,7 +349,7 @@ class BaseDao(object, metaclass=abc.ABCMeta):
         # Añado el contenido final del filtro a la cláusula where del statement
         return stmt.where(*filter_content)
 
-    def __resolve_join_clause(self, join_clauses: List[JoinClause], stmt):
+    def __resolve_join_clause(self, join_clauses: List[JoinClause], stmt, alias_dict: dict):
         """
         Resuelve la cláusula join.
         :param join_clauses: Lista de cláusulas join.
@@ -357,25 +357,21 @@ class BaseDao(object, metaclass=abc.ABCMeta):
         """
 
         for j in join_clauses:
-            relationship_to_join_class: Union[type, None] = None
+            # Obtengo el atributo en sí para forzar el fetch
             relationship_to_join = getattr(self.entity_type, j.relationship_field_name)
-
-            # Examino las relaciones de la clase para obtener el tipo, lo voy a necesitar para los joins de entidades
-            # anidadas en otras
-            for att in self.entity_type.__mapper__.relationships:
-                rel_field_name = att.key
-                if rel_field_name == j.relationship_field_name:
-                    relationship_to_join_class = att.mapper.class_
-                    break
-
-            print(relationship_to_join_class)
+            # Recupero el alias calculado anteriormente
+            alias = alias_dict[j.relationship_field_name]
 
             # Comprobar el tipo de join
             if j.join_type == EnumJoinTypes.LEFT_JOIN:
                 # Importante añadir una opción para forzar que traiga la relación cargada en el objeto
-                stmt = stmt.outerjoin(relationship_to_join).options(contains_eager(relationship_to_join))
+                # OJO!!! Importante utilizar "of_type(alias)" para que sea capaz de resolver el alias asignado
+                # a cada tabla.
+                stmt = stmt.outerjoin(relationship_to_join.of_type(alias)).\
+                    options(contains_eager(relationship_to_join.of_type(alias)))
             else:
-                stmt = stmt.join(relationship_to_join).options(contains_eager(relationship_to_join))
+                stmt = stmt.join(relationship_to_join.of_type(alias)).\
+                    options(contains_eager(relationship_to_join.of_type(alias)))
 
         return stmt
 
@@ -386,12 +382,32 @@ class BaseDao(object, metaclass=abc.ABCMeta):
         """
         my_session = type(self).get_session_for_current_thread()
 
+        aliases_dict = {}
+
+        # Primero tengo que examinar las cláusulas join para calcular los alias de las distintas
+        # tablas involucradas en la query. Esto es importante para consultas en las que se hace join más de una vez
+        # sobre una misma tabla.
+        if join_clauses:
+            for j in join_clauses:
+                relationship_to_join_class: Union[type, None] = None
+
+                # Busco el tipo de entidad para generar un alias. Utilizo el mapa de relaciones de la propia entidad.
+                for att in self.entity_type.__mapper__.relationships:
+                    rel_field_name = att.key
+                    if rel_field_name == j.relationship_field_name:
+                        relationship_to_join_class = att.mapper.class_
+                        break
+
+                # Calculo el alias y lo añado al diccionario, siendo la clave el nombre del campo del join
+                alias = aliased(relationship_to_join_class)
+                aliases_dict[j.relationship_field_name] = alias
+
         # Expresión de la consulta
         stmt = select(self.entity_type)
 
         # Resolver cláusula join
         if join_clauses:
-            stmt = self.__resolve_join_clause(join_clauses=join_clauses, stmt=stmt)
+            stmt = self.__resolve_join_clause(join_clauses=join_clauses, stmt=stmt, alias_dict=aliases_dict)
 
         # Resolver cláusula where
         if filter_clauses:

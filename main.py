@@ -31,13 +31,15 @@ def query_2():
 
     joins: List[JoinClause] = [
         JoinClause(relationship_field_name="tipo_cliente", join_type=EnumJoinTypes.INNER_JOIN),
-    JoinClause(relationship_field_name="usuario_creacion", join_type=EnumJoinTypes.LEFT_JOIN)]
+        JoinClause(relationship_field_name="usuario_creacion", join_type=EnumJoinTypes.LEFT_JOIN),
+        JoinClause(relationship_field_name="usuario_ult_mod", join_type=EnumJoinTypes.LEFT_JOIN)
+    ]
 
     result = service.select(join_clauses=joins)
-    # result = service.select_all()
 
     for r in result:
-        print(f"Tipo cliente: {r.tipo_cliente} -------- Usuario creación: {r.usuario_creacion}")
+        print(f"Tipo cliente: {r.tipo_cliente} \n Usuario creación: {r.usuario_creacion} \n "
+              f"Usuario última mod.: {r.usuario_ult_mod}\n")
 
 
 if __name__ == '__main__':
