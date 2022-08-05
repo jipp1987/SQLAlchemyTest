@@ -3,6 +3,7 @@ import enum
 from collections import namedtuple
 import threading
 from copy import deepcopy
+from dataclasses import dataclass
 from typing import Dict, List, Union
 
 from sqlalchemy import create_engine, select, and_, or_
@@ -33,6 +34,15 @@ class EnumSQLEngineTypes(enum.Enum):
 
 BaseEntity = declarative_base()
 """Declaración de clase para mapeo de todas la entidades de la base de datos."""
+
+
+@dataclass(frozen=True)
+class _SQLModelHelper(object):
+    """Clase auxiliar para tener mejor identificados los distintos atributos relacionados con los alias de los
+    campos que deben utilizarse en la consulta."""
+    model_type: str
+    model_alias: any
+    model_field: any
 
 
 class BaseDao(object, metaclass=abc.ABCMeta):
@@ -250,6 +260,66 @@ class BaseDao(object, metaclass=abc.ABCMeta):
 
         return result
 
+    # SELECT
+
+    def select(self, filter_clauses: List[FilterClause] = None, join_clauses: List[JoinClause] = None) \
+            -> List[BaseEntity]:
+        """
+        Hace una consulta a la base de datos.
+        """
+        my_session = type(self).get_session_for_current_thread()
+
+        # Diccionario de alias de campos para utilizar a lo largo de la query. La clave es el nombre del campo tal cual
+        # viene en la join_clause
+        aliases_dict: Dict[str, _SQLModelHelper] = {}
+
+        # Primero tengo que examinar las cláusulas join para calcular los alias de las distintas
+        # tablas involucradas en la query. Esto es importante para consultas en las que se hace join más de una vez
+        # sobre una misma tabla.
+        if join_clauses:
+            for j in join_clauses:
+                relationship_to_join_class: Union[type, None] = None
+
+                # Es posible que sea una entidad anidada en otra, separadas por un punto
+                if "." in j.relationship_field_name:
+                    rel_split = j.relationship_field_name.split(".")
+                else:
+                    # Si no es el caso, asumimos que pertenece a la entidad principal del dao
+                    relationship_to_join_value: any = getattr(self.entity_type, j.relationship_field_name)
+
+                # Busco el tipo de entidad para generar un alias. Utilizo el mapa de relaciones de la propia entidad.
+                for att in self.entity_type.__mapper__.relationships:
+                    rel_field_name = att.key
+                    if rel_field_name == j.relationship_field_name:
+                        relationship_to_join_class = att.mapper.class_
+                        break
+
+                # Calculo el alias y lo añado al diccionario, siendo la clave el nombre del campo del join
+                alias = aliased(relationship_to_join_class)
+                aliases_dict[j.relationship_field_name] = alias
+
+        # Expresión de la consulta
+        stmt = select(self.entity_type)
+
+        # Resolver cláusula join
+        if join_clauses:
+            stmt = self.__resolve_join_clause(join_clauses=join_clauses, stmt=stmt, alias_dict=aliases_dict)
+
+        # Resolver cláusula where
+        if filter_clauses:
+            stmt = self.__resolve_filter_clauses(filter_clauses=filter_clauses, stmt=stmt)
+
+        stmt = stmt.order_by(self.entity_type.id.desc())
+
+        # Ejecutar la consulta
+        result = my_session.execute(stmt).scalars().all()
+
+        # Para evitar problemas, hago flush y libero todos los elementos
+        my_session.flush()
+        my_session.expunge_all()
+
+        return result
+
     def __resolve_filter_clauses(self, filter_clauses: List[FilterClause], stmt):
         """
         Resuelve el contenido de los filtros.
@@ -374,52 +444,3 @@ class BaseDao(object, metaclass=abc.ABCMeta):
                     options(contains_eager(relationship_to_join.of_type(alias)))
 
         return stmt
-
-    def select(self, filter_clauses: List[FilterClause] = None, join_clauses: List[JoinClause] = None) \
-            -> List[BaseEntity]:
-        """
-        Hace una consulta a la base de datos.
-        """
-        my_session = type(self).get_session_for_current_thread()
-
-        aliases_dict = {}
-
-        # Primero tengo que examinar las cláusulas join para calcular los alias de las distintas
-        # tablas involucradas en la query. Esto es importante para consultas en las que se hace join más de una vez
-        # sobre una misma tabla.
-        if join_clauses:
-            for j in join_clauses:
-                relationship_to_join_class: Union[type, None] = None
-
-                # Busco el tipo de entidad para generar un alias. Utilizo el mapa de relaciones de la propia entidad.
-                for att in self.entity_type.__mapper__.relationships:
-                    rel_field_name = att.key
-                    if rel_field_name == j.relationship_field_name:
-                        relationship_to_join_class = att.mapper.class_
-                        break
-
-                # Calculo el alias y lo añado al diccionario, siendo la clave el nombre del campo del join
-                alias = aliased(relationship_to_join_class)
-                aliases_dict[j.relationship_field_name] = alias
-
-        # Expresión de la consulta
-        stmt = select(self.entity_type)
-
-        # Resolver cláusula join
-        if join_clauses:
-            stmt = self.__resolve_join_clause(join_clauses=join_clauses, stmt=stmt, alias_dict=aliases_dict)
-
-        # Resolver cláusula where
-        if filter_clauses:
-            stmt = self.__resolve_filter_clauses(filter_clauses=filter_clauses, stmt=stmt)
-
-        stmt = stmt.order_by(self.entity_type.id.desc())
-
-        # Ejecutar la consulta
-        result = my_session.execute(stmt).scalars().all()
-
-        # Para evitar problemas, hago flush y libero todos los elementos
-        my_session.flush()
-        my_session.expunge_all()
-
-        return result
