@@ -30,7 +30,8 @@ def query_2():
     service = ServiceFactory.get_service(ClienteServiceImpl)
 
     joins: List[JoinClause] = [
-        # JoinClause(relationship_field_name="tipo_cliente.usuario_creacion", join_type=EnumJoinTypes.LEFT_JOIN),
+        JoinClause(relationship_field_name="tipo_cliente.usuario_creacion", join_type=EnumJoinTypes.LEFT_JOIN,
+                   is_join_with_fetch=True),
         JoinClause(relationship_field_name="usuario_ult_mod", join_type=EnumJoinTypes.LEFT_JOIN,
                    is_join_with_fetch=True),
         JoinClause(relationship_field_name="usuario_creacion", join_type=EnumJoinTypes.LEFT_JOIN,
@@ -42,8 +43,9 @@ def query_2():
     result = service.select(join_clauses=joins)
 
     for r in result:
-        print(f"Tipo cliente: {r.tipo_cliente} \n Usuario creación: {r.usuario_creacion} \n "
-              f"Usuario última mod.: {r.usuario_ult_mod}\n")
+        print(f"\nTipo cliente: {r.tipo_cliente} \n Usuario creación: {r.usuario_creacion}\n "
+              f"Usuario última mod.: {r.usuario_ult_mod}\n"
+              f"TipoCliente - UsuarioCreacion: {r.tipo_cliente.usuario_creacion}\n")
 
 
 def query_3():
@@ -56,4 +58,4 @@ if __name__ == '__main__':
     d = read_section_in_ini_file(file_name="db", section="MyDataBase")
     BaseDao.set_db_config_values(**d)
 
-    query_3()
+    query_2()

@@ -42,7 +42,10 @@ class _SQLModelHelper(object):
     campos que deben utilizarse en la consulta."""
     model_type: type
     model_alias: any
-    model_field: any
+    model_field_value: any
+    model_owner_type: any
+    field_name: str
+    owner_breadcrumb: List[tuple]
 
 
 class BaseDao(object, metaclass=abc.ABCMeta):
@@ -400,30 +403,47 @@ class BaseDao(object, metaclass=abc.ABCMeta):
         # Añado el contenido final del filtro a la cláusula where del statement
         return stmt.where(*filter_content)
 
-    def __resolve_join_clause(self, join_clauses: List[JoinClause], stmt, alias_dict: dict):
+    @staticmethod
+    def __resolve_join_clause(join_clauses: List[JoinClause], stmt, alias_dict: Dict[str, _SQLModelHelper]):
         """
         Resuelve la cláusula join.
         :param join_clauses: Lista de cláusulas join.
+        :param alias_dict: Diccionario de alias.
         :returns: Statement SQL con los joins añadidos.
         """
         for j in join_clauses:
-            # Obtengo el atributo en sí para forzar el fetch
-            relationship_to_join = getattr(self.entity_type, j.relationship_field_name)
-            # Recupero el alias calculado anteriormente
+            # Recuepero el valor del join, el campo del modelo por el que se va a hacer join
+            relationship_to_join = alias_dict[j.relationship_field_name].model_field_value
+
+            # Recupero el alias calculated anteriormente
             alias = alias_dict[j.relationship_field_name].model_alias
 
-            # Comprobar el tipo de join
-            if j.join_type == EnumJoinTypes.LEFT_JOIN:
-                # Importante añadir una opción para forzar que traiga la relación cargada en el objeto
-                stmt = stmt.outerjoin(relationship_to_join.of_type(alias))
-            else:
-                stmt = stmt.join(relationship_to_join.of_type(alias))
+            # Compruebo si es una entidad anidada sobre otra entidad a través del campo owner_breadcrumb
+            eager_options = []
+            if alias_dict[j.relationship_field_name].owner_breadcrumb:
+                bread_crumbs = alias_dict[j.relationship_field_name].owner_breadcrumb
+                for b in bread_crumbs:
+                    eager_options.append(b)
+
+            # Añadir siempre el valor correspondiente al join actual al final, para respetar la "miga de pan"
+            eager_options.append(relationship_to_join.of_type(alias))
+
+            # OJO!!! Para el caso de relaciones anidadas en otras, hay que hacer tantos joins como corresponda a la
+            # "miga de pan" del valor actual del join.
+            for o in eager_options:
+                # Comprobar el tipo de join
+                if j.join_type == EnumJoinTypes.LEFT_JOIN:
+                    # Importante añadir una opción para forzar que traiga la relación cargada en el objeto
+                    stmt = stmt.outerjoin(o)
+                else:
+                    stmt = stmt.join(o)
 
             # Si tiene fetch, añadir una opción para traerte todos los campos para rellenar el objeto relation_ship.
             # OJO!!! Importante utilizar "of_type(alias)" para que sea capaz de resolver el alias asignado
             # a cada tabla.
             if j.is_join_with_fetch:
-                stmt = stmt.options(contains_eager(relationship_to_join.of_type(alias)))
+                # Compruebo si es una entidad anidada sobre otra entidad a través del campo owner_breadcrumb
+                stmt = stmt.options(contains_eager(*eager_options))
 
         return stmt
 
@@ -437,34 +457,61 @@ class BaseDao(object, metaclass=abc.ABCMeta):
         # Creo un namedtuple para la operación de ordenación. La idea es separar los campos por el separador "." y
         # ordenarlos en función del tamaño del array resultante, así los campos más anidados estarán al final y el
         # diccionario siempre contendrá a sus "padres" antes de tratarlo.
-        join_sorted = namedtuple("join_sorted", ["length", "join_clause"])
+        join_sorted = namedtuple("join_sorted", ["join_split", "join_clause"])
         join_sorted_list: List[join_sorted] = []
 
         # Primera pasada para ordenar las join_clauses
-        for j in join_clauses:
-            rel_split = j.relationship_field_name.split(".")
-            join_sorted_list.append(join_sorted(length=len(rel_split), join_clause=j))
+        for join_clause in join_clauses:
+            rel_split = join_clause.relationship_field_name.split(".")
+            join_sorted_list.append(join_sorted(join_split=rel_split, join_clause=join_clause))
 
         # Ordenar la lista en función del número de elementos
-        join_sorted_list = sorted(join_sorted_list, key=lambda x: x.length, reverse=False)
+        join_sorted_list = sorted(join_sorted_list, key=lambda x: len(x.join_split), reverse=False)
 
-        for i in join_sorted_list:
-            j = i.join_clause
+        for sorted_element in join_sorted_list:
+            join_clause = sorted_element.join_clause
             relationship_to_join_class: Union[type, None] = None
 
+            key: str = join_clause.relationship_field_name
+
+            # El campo a comprobar será siempre el último elemento del array split
+            field_to_check: str = sorted_element.join_split[-1]
+            class_to_check = self.entity_type
+
+            # Primero intento recuperar el valor del mapa, para así obtener los datos del elemento inmediatamente
+            # anterior. La clave a recuperar no es la actual, sino la del elemento anterior, para lo cual tengo que
+            # acceder al penúltimo nivel del array
+            if len(sorted_element.join_split) > 1:
+                previous_key: str = ".".join(sorted_element.join_split[:-1])
+                class_to_check = aliases_dict[previous_key].model_type
+
             # Si no es el caso, asumimos que pertenece a la entidad principal del dao
-            relationship_to_join_value: any = getattr(self.entity_type, j.relationship_field_name)
+            relationship_to_join_value: any = getattr(class_to_check, field_to_check)
+
+            # Esto lo necesito porque si es una entidad anidad sobre otra entidad anidada, necesito toda
+            # la "miga de pan" para que el join funcione correctamente, si sólo especifico el último valor no entenderá
+            # de dónde viene la entidad.
+            owner_breadcrumb: list = []
+            if len(sorted_element.join_split) > 1:
+                previous_key: str = ".".join(sorted_element.join_split[:-1])
+                # Primero añado la lista que ya tuviera el propietario, a modo de miga de pan
+                owner_breadcrumb.extend(aliases_dict[previous_key].owner_breadcrumb)
+                # Luego añado la que le corresponde a sí mismo, que es la del registro anterior.
+                owner_breadcrumb.append(aliases_dict[previous_key].model_field_value)
 
             # Busco el tipo de entidad para generar un alias. Utilizo el mapa de relaciones de la propia entidad.
-            for att in self.entity_type.__mapper__.relationships:
+            for att in class_to_check.__mapper__.relationships:
                 rel_field_name = att.key
-                if rel_field_name == j.relationship_field_name:
+                if rel_field_name == field_to_check:
                     relationship_to_join_class = att.mapper.class_
                     break
 
             # Calculo el alias y lo añado al diccionario, siendo la clave el nombre del campo del join
             alias = aliased(relationship_to_join_class)
             # Añado un objeto al mapa para tener mejor controlados estos datos
-            aliases_dict[j.relationship_field_name] = _SQLModelHelper(model_type=relationship_to_join_class,
-                                                                      model_alias=alias,
-                                                                      model_field=relationship_to_join_value)
+            aliases_dict[key] = _SQLModelHelper(model_type=relationship_to_join_class,
+                                                model_alias=alias,
+                                                model_owner_type=class_to_check,
+                                                owner_breadcrumb=owner_breadcrumb,
+                                                field_name=field_to_check,
+                                                model_field_value=relationship_to_join_value)
