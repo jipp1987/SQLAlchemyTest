@@ -13,6 +13,10 @@ class ClienteServiceImpl(BaseService):
         super().__init__(dao=ClienteDaoImpl())
 
     @service_method
+    def test_join(self):
+        return self._dao.test_join()
+
+    @service_method
     def test(self):
         tipo_cliente_service: TipoClienteServiceImpl = ServiceFactory.get_service(TipoClienteServiceImpl)
 

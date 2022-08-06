@@ -419,19 +419,19 @@ class BaseDao(object, metaclass=abc.ABCMeta):
             alias = alias_dict[j.relationship_field_name].model_alias
 
             # Compruebo si es una entidad anidada sobre otra entidad a través del campo owner_breadcrumb
-            eager_options = []
+            join_options = []
             if alias_dict[j.relationship_field_name].owner_breadcrumb:
                 bread_crumbs = alias_dict[j.relationship_field_name].owner_breadcrumb
                 for b in bread_crumbs:
-                    eager_options.append(b)
+                    join_options.append(b[0])
 
             # Añadir siempre el valor correspondiente al join actual al final, para respetar la "miga de pan"
-            eager_options.append(relationship_to_join.of_type(alias))
+            join_options.append(relationship_to_join.of_type(alias))
 
             # OJO!!! Para el caso de relaciones anidadas en otras, hay que hacer tantos joins como corresponda a la
             # "miga de pan" del valor actual del join.
-            for o in eager_options:
-                # Comprobar el tipo de join
+            # Comprobar el tipo de join
+            for o in join_options:
                 if j.join_type == EnumJoinTypes.LEFT_JOIN:
                     # Importante añadir una opción para forzar que traiga la relación cargada en el objeto
                     stmt = stmt.outerjoin(o)
@@ -443,7 +443,7 @@ class BaseDao(object, metaclass=abc.ABCMeta):
             # a cada tabla.
             if j.is_join_with_fetch:
                 # Compruebo si es una entidad anidada sobre otra entidad a través del campo owner_breadcrumb
-                stmt = stmt.options(contains_eager(*eager_options))
+                stmt = stmt.options(contains_eager(*join_options))
 
         return stmt
 
@@ -491,13 +491,14 @@ class BaseDao(object, metaclass=abc.ABCMeta):
             # Esto lo necesito porque si es una entidad anidad sobre otra entidad anidada, necesito toda
             # la "miga de pan" para que el join funcione correctamente, si sólo especifico el último valor no entenderá
             # de dónde viene la entidad.
-            owner_breadcrumb: list = []
+            owner_breadcrumb: List[tuple] = []
             if len(sorted_element.join_split) > 1:
                 previous_key: str = ".".join(sorted_element.join_split[:-1])
                 # Primero añado la lista que ya tuviera el propietario, a modo de miga de pan
                 owner_breadcrumb.extend(aliases_dict[previous_key].owner_breadcrumb)
                 # Luego añado la que le corresponde a sí mismo, que es la del registro anterior.
-                owner_breadcrumb.append(aliases_dict[previous_key].model_field_value)
+                owner_breadcrumb.append((aliases_dict[previous_key].model_field_value,
+                                         aliases_dict[previous_key].model_alias))
 
             # Busco el tipo de entidad para generar un alias. Utilizo el mapa de relaciones de la propia entidad.
             for att in class_to_check.__mapper__.relationships:
@@ -507,7 +508,7 @@ class BaseDao(object, metaclass=abc.ABCMeta):
                     break
 
             # Calculo el alias y lo añado al diccionario, siendo la clave el nombre del campo del join
-            alias = aliased(relationship_to_join_class)
+            alias = aliased(relationship_to_join_class, name="_".join(sorted_element.join_split))
             # Añado un objeto al mapa para tener mejor controlados estos datos
             aliases_dict[key] = _SQLModelHelper(model_type=relationship_to_join_class,
                                                 model_alias=alias,
