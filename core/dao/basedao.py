@@ -280,7 +280,9 @@ class BaseDao(object, metaclass=abc.ABCMeta):
         # tablas involucradas en la query. Esto es importante para consultas en las que se hace join más de una vez
         # sobre una misma tabla.
         if join_clauses:
-            self.__resolve_field_aliases(join_clauses=join_clauses, aliases_dict=aliases_dict)
+            # Esta función devuelve la lista de joins ordenada de acuerdo a su nivel de "anidación" de entidades,
+            # para respetar un orden lógico de joins y evitar resultados duplicados y equívocos en la consulta.
+            join_clauses = self.__resolve_field_aliases(join_clauses=join_clauses, aliases_dict=aliases_dict)
 
         # Expresión de la consulta
         stmt = select(self.entity_type)
@@ -411,6 +413,9 @@ class BaseDao(object, metaclass=abc.ABCMeta):
         :param alias_dict: Diccionario de alias.
         :returns: Statement SQL con los joins añadidos.
         """
+        # Lista de opciones para el join, para añadirlo al final
+        join_options_final = []
+
         for j in join_clauses:
             # Recuepero el valor del join, el campo del modelo por el que se va a hacer join
             relationship_to_join = alias_dict[j.relationship_field_name].model_field_value
@@ -426,33 +431,35 @@ class BaseDao(object, metaclass=abc.ABCMeta):
                     join_options.append(b[0])
 
             # Añadir siempre el valor correspondiente al join actual al final, para respetar la "miga de pan"
-            join_options.append(relationship_to_join.of_type(alias))
-
-            # OJO!!! Para el caso de relaciones anidadas en otras, hay que hacer tantos joins como corresponda a la
-            # "miga de pan" del valor actual del join.
-            # Comprobar el tipo de join
-            for o in join_options:
-                if j.join_type == EnumJoinTypes.LEFT_JOIN:
-                    # Importante añadir una opción para forzar que traiga la relación cargada en el objeto
-                    stmt = stmt.outerjoin(o)
-                else:
-                    stmt = stmt.join(o)
-
-            # Si tiene fetch, añadir una opción para traerte todos los campos para rellenar el objeto relation_ship.
             # OJO!!! Importante utilizar "of_type(alias)" para que sea capaz de resolver el alias asignado
             # a cada tabla.
+            join_options.append(relationship_to_join.of_type(alias))
+
+            # Comprobar el tipo de join; utilizo sólo el último elemento de join_options, en la función del join no
+            # hace falta cargar toda la miga de pan, sólo el elemento hacia el que se hace join.
+            is_outer: bool = True if j.join_type is not None and j.join_type == EnumJoinTypes.LEFT_JOIN else False
+            stmt = stmt.join(join_options[-1], isouter=is_outer)
+
+            # Si tiene fetch, añadir una opción para traerte todos los campos para rellenar el objeto relation_ship.
             if j.is_join_with_fetch:
-                # Compruebo si es una entidad anidada sobre otra entidad a través del campo owner_breadcrumb
-                stmt = stmt.options(contains_eager(*join_options))
+                # Para aquéllas entidades anidadas en otras, aquí hay que cargar toda la miga de pan para que el motor
+                # sepa resolver la relación entre objetos.
+                join_options_final.append(contains_eager(*join_options))
+
+        # Añadir las opciones al final
+        if join_options_final:
+            stmt = stmt.options(*join_options_final)
 
         return stmt
 
-    def __resolve_field_aliases(self, join_clauses: List[JoinClause], aliases_dict: dict) -> None:
+    def __resolve_field_aliases(self, join_clauses: List[JoinClause], aliases_dict: dict) -> List[JoinClause]:
         """
         Resuelve los alias de las tablas de la consulta.
         :param join_clauses: Lista de cláusulas join.
         :param aliases_dict: Diccionario clave-valor para contener la información.
-        :return: None
+        :return: Devuelve una nueva lista de joins ordenadas por nivel de anidamiento, es decir, las entidades más
+        anidadas contando desde la entidad principal se situarán en las últimas posiciones. Es importante respetar este
+        orden para que la consulta funcione bien.
         """
         # Creo un namedtuple para la operación de ordenación. La idea es separar los campos por el separador "." y
         # ordenarlos en función del tamaño del array resultante, así los campos más anidados estarán al final y el
@@ -468,8 +475,13 @@ class BaseDao(object, metaclass=abc.ABCMeta):
         # Ordenar la lista en función del número de elementos
         join_sorted_list = sorted(join_sorted_list, key=lambda x: len(x.join_split), reverse=False)
 
+        # Es importante que los joins estén ordenados en la consulta final, aprovecho la lista auxiliar
+        # ordenada para rehacer la lista original
+        join_clauses_sortened: List[JoinClause] = []
+
         for sorted_element in join_sorted_list:
             join_clause = sorted_element.join_clause
+            join_clauses_sortened.append(join_clause)
             relationship_to_join_class: Union[type, None] = None
 
             key: str = join_clause.relationship_field_name
@@ -516,3 +528,5 @@ class BaseDao(object, metaclass=abc.ABCMeta):
                                                 owner_breadcrumb=owner_breadcrumb,
                                                 field_name=field_to_check,
                                                 model_field_value=relationship_to_join_value)
+
+        return join_clauses_sortened

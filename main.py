@@ -63,4 +63,4 @@ if __name__ == '__main__':
     d = read_section_in_ini_file(file_name="db", section="MyDataBase")
     BaseDao.set_db_config_values(**d)
 
-    query_3()
+    query_2()

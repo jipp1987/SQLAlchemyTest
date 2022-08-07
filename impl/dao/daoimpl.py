@@ -40,17 +40,18 @@ class ClienteDaoImpl(BaseDao):
         alias_3 = aliased(Usuario, name="tipo_cliente_usuario_ult_mod")
         alias_4 = aliased(Usuario, name="tipo_cliente_usuario_creacion")
 
-        stmt = select(Cliente).join(Cliente.tipo_cliente.of_type(alias_0)). \
-            outerjoin(Cliente.usuario_creacion.of_type(alias_1)). \
+        stmt = select(Cliente).\
             outerjoin(Cliente.usuario_ult_mod.of_type(alias_2)). \
-            outerjoin(TipoCliente.usuario_ult_mod.of_type(alias_3)). \
+            outerjoin(Cliente.usuario_creacion.of_type(alias_1)). \
+            join(Cliente.tipo_cliente.of_type(alias_0)). \
             outerjoin(TipoCliente.usuario_creacion.of_type(alias_4)). \
+            outerjoin(TipoCliente.usuario_ult_mod.of_type(alias_3)). \
             options(
+            contains_eager(Cliente.tipo_cliente, TipoCliente.usuario_ult_mod.of_type(alias_3)),
+            contains_eager(Cliente.tipo_cliente, TipoCliente.usuario_creacion.of_type(alias_4)),
             contains_eager(Cliente.tipo_cliente.of_type(alias_0)),
             contains_eager(Cliente.usuario_creacion.of_type(alias_1)),
             contains_eager(Cliente.usuario_ult_mod.of_type(alias_2)),
-            contains_eager(Cliente.tipo_cliente, TipoCliente.usuario_ult_mod.of_type(alias_3)),
-            contains_eager(Cliente.tipo_cliente, TipoCliente.usuario_creacion.of_type(alias_4))
         ).where(alias_3.username.like("%a%"))
 
         # Ejecutar la consulta
