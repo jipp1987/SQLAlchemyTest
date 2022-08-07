@@ -6,7 +6,7 @@ from copy import deepcopy
 from dataclasses import dataclass
 from typing import Dict, List, Union
 
-from sqlalchemy import create_engine, select, and_, or_
+from sqlalchemy import create_engine, select, and_, or_, inspect
 from sqlalchemy.engine import Engine
 from sqlalchemy.orm import sessionmaker, declarative_base, contains_eager, aliased
 from sqlalchemy.sql import expression
@@ -282,7 +282,7 @@ class BaseDao(object, metaclass=abc.ABCMeta):
         if join_clauses:
             # Esta función devuelve la lista de joins ordenada de acuerdo a su nivel de "anidación" de entidades,
             # para respetar un orden lógico de joins y evitar resultados duplicados y equívocos en la consulta.
-            join_clauses = self.__resolve_field_aliases(join_clauses=join_clauses, aliases_dict=aliases_dict)
+            join_clauses = self.__resolve_field_aliases(join_clauses=join_clauses, alias_dict=aliases_dict)
 
         # Expresión de la consulta
         stmt = select(self.entity_type)
@@ -293,7 +293,7 @@ class BaseDao(object, metaclass=abc.ABCMeta):
 
         # Resolver cláusula where
         if filter_clauses:
-            stmt = self.__resolve_filter_clauses(filter_clauses=filter_clauses, stmt=stmt)
+            stmt = self.__resolve_filter_clauses(filter_clauses=filter_clauses, stmt=stmt, alias_dict=aliases_dict)
 
         stmt = stmt.order_by(self.entity_type.id.desc())
 
@@ -306,54 +306,102 @@ class BaseDao(object, metaclass=abc.ABCMeta):
 
         return result
 
-    def __resolve_filter_clauses(self, filter_clauses: List[FilterClause], stmt):
+    def __resolve_filter_clauses(self, filter_clauses: List[FilterClause], stmt,
+                                 alias_dict: Dict[str, _SQLModelHelper]):
         """
         Resuelve el contenido de los filtros.
         :param stmt: Statement al que se le van a añadir los filtros.
-        :param filter_clauses:
+        :param filter_clauses: Filtro a comprobar
+        :param alias_dict: Diccionario de alias para recuperar el alias que le corresponde a la entidad propietaria
+        de cada filtro.
         :return: Devuelve el statement con los filtros añadidos
         """
         # Contenido final del filtro en forma de listado que se va a añadir al statement
         filter_content = []
 
-        def __inner_resolve_filter_clauses(field_clause: FilterClause):
+        def __inner_resolve_filter_clauses(filter_clause: FilterClause, aliases_dict_inner: Dict[str, _SQLModelHelper]):
             """
             Utilizo esta función interna para resolver los filtros anidados en otros filtros (aquéllos que van a ir
             dentro de un mismo paréntesis).
-            :param field_clause:
+            :param filter_clause: Filtro a comprobar.
+            :param aliases_dict_inner: Diccionario de alias para recuperar el alias que le corresponde a la entidad
+            propietaria de cada filtro.
             :return: None
             """
-            # Primero voy recuperando los campos por nombre de la entidad objetivo
-            field_to_filter_by = getattr(self.entity_type, field_clause.field_name)
-
             # Calcular operador de unión entre filtros
             f_operator: expression = and_
-            if field_clause.operator_type is not None and field_clause.operator_type == EnumOperatorTypes.OR:
+            if filter_clause.operator_type is not None and filter_clause.operator_type == EnumOperatorTypes.OR:
                 f_operator = or_
 
             # Paréntesis: si el atributo related_filter_clauses no está vacío, significa que la cláusula está
             # unida a otras dentro de un paréntesis.
             # Creo dos listas, una iniciada con el filtro principal
-            inner_filter_list = [field_clause]
+            inner_filter_list = [filter_clause]
 
             has_related_filters: bool = False
 
             # Si tiene filtros asociados, los añado a la lista interna de filtros para tratarlos todos como uno sólo,
             # de tal manera que estarán todos dentro de un paréntesis
-            if field_clause.related_filter_clauses:
+            if filter_clause.related_filter_clauses:
                 has_related_filters = True
 
-                for related_filter in field_clause.related_filter_clauses:
+                for related_filter in filter_clause.related_filter_clauses:
                     inner_filter_list.append(related_filter)
 
             # Lista final de expresiones que se añadirán al operador al final
             inner_expression_list = []
+
+            # Lo utilizo para separar el campo del filtro por los puntos y así obtener primero la entidad relacionada
+            # (la lista hasta el último elemento sin incluir) y el nombre del campo por el que se va a filtrar. Lo
+            # necesito para recuperar el alias del diccionario de alias, así como para tratar el tipo de dato por si
+            # fuese por ejemplo una fecha.
+            filter_clause_split: List[str]
+            entity_breadcrumb: str
+            filter_entity: BaseEntity
+            field_alias: any
+            field_to_filter_by: any
+            mapper: any
+
+            # También voy a recuperar el tipo de campo por el que filtrar, lo voy a necesitar para tratar ciertos
+            # tipos de filtros como por ejemplo filtro por fechas.
+            field_type: any
 
             # Lo normal es que sea un sólo filtro, pero con esto puedo controlar la posibilidad de que haya varios
             # filtros relacionados dentro de un paréntesis.
             for f in inner_filter_list:
                 # Expresión a añadir
                 filter_expression: any = None
+
+                filter_clause_split = f.field_name.split(".")
+                # Obtengo la entidad relacionada descartanto el último elemento; se va a corresponder con la clave
+                # del diccionario de alias
+                entity_breadcrumb = ".".join(filter_clause_split[:-1]) if len(filter_clause_split) > 1 else None
+
+                # El campo por el que filtrar será siempre el último del split
+                field_to_filter_by = filter_clause_split[-1]
+
+                # En función de si es una entidad anidada, preparo los campos
+                if entity_breadcrumb is None:
+                    # Si no existe miga de pan, es que no es una entidad anidada, la consulta se hace sobre la propia
+                    # entidad base.
+                    filter_entity = self.entity_type
+                    field_alias = None
+                else:
+                    # Si existe miga de pan, es un filtro por algún campo anidado respecto a la entidad base; recupero
+                    # la información desde el diccionario de alias.
+                    filter_entity = aliases_dict_inner[entity_breadcrumb].model_type
+                    field_alias = aliases_dict_inner[entity_breadcrumb].model_alias
+
+                # Recupero el tipo de campo para tratar ciertos filtros especiales, como las fechas
+                mapper = inspect(filter_entity)
+                field_type = mapper.columns[field_to_filter_by].type
+
+                # Obtengo el propio campo para filtrar
+                # Si existe alias, hay que utilizarlo en los filtros (para el caso de entidades anidadas)
+                if field_alias is not None:
+                    field_to_filter_by = getattr(field_alias, field_to_filter_by)
+                else:
+                    field_to_filter_by = getattr(filter_entity, field_to_filter_by)
 
                 # Voy comprobando el tipo de filtro y construyendo la expresión de forma adecuada según los criterios de
                 # SQLAlchemy
@@ -400,7 +448,7 @@ class BaseDao(object, metaclass=abc.ABCMeta):
         # Hago el proceso para cada filtro del listado, para controlar los filtros anidados en otros (relacionados
         # entre por paréntesis)
         for filter_q in filter_clauses:
-            __inner_resolve_filter_clauses(filter_q)
+            __inner_resolve_filter_clauses(filter_q, alias_dict)
 
         # Añado el contenido final del filtro a la cláusula where del statement
         return stmt.where(*filter_content)
@@ -452,11 +500,11 @@ class BaseDao(object, metaclass=abc.ABCMeta):
 
         return stmt
 
-    def __resolve_field_aliases(self, join_clauses: List[JoinClause], aliases_dict: dict) -> List[JoinClause]:
+    def __resolve_field_aliases(self, join_clauses: List[JoinClause], alias_dict: dict) -> List[JoinClause]:
         """
         Resuelve los alias de las tablas de la consulta.
         :param join_clauses: Lista de cláusulas join.
-        :param aliases_dict: Diccionario clave-valor para contener la información.
+        :param alias_dict: Diccionario clave-valor para contener la información.
         :return: Devuelve una nueva lista de joins ordenadas por nivel de anidamiento, es decir, las entidades más
         anidadas contando desde la entidad principal se situarán en las últimas posiciones. Es importante respetar este
         orden para que la consulta funcione bien.
@@ -495,7 +543,7 @@ class BaseDao(object, metaclass=abc.ABCMeta):
             # acceder al penúltimo nivel del array
             if len(sorted_element.join_split) > 1:
                 previous_key: str = ".".join(sorted_element.join_split[:-1])
-                class_to_check = aliases_dict[previous_key].model_type
+                class_to_check = alias_dict[previous_key].model_type
 
             # Si no es el caso, asumimos que pertenece a la entidad principal del dao
             relationship_to_join_value: any = getattr(class_to_check, field_to_check)
@@ -507,10 +555,10 @@ class BaseDao(object, metaclass=abc.ABCMeta):
             if len(sorted_element.join_split) > 1:
                 previous_key: str = ".".join(sorted_element.join_split[:-1])
                 # Primero añado la lista que ya tuviera el propietario, a modo de miga de pan
-                owner_breadcrumb.extend(aliases_dict[previous_key].owner_breadcrumb)
+                owner_breadcrumb.extend(alias_dict[previous_key].owner_breadcrumb)
                 # Luego añado la que le corresponde a sí mismo, que es la del registro anterior.
-                owner_breadcrumb.append((aliases_dict[previous_key].model_field_value,
-                                         aliases_dict[previous_key].model_alias))
+                owner_breadcrumb.append((alias_dict[previous_key].model_field_value,
+                                         alias_dict[previous_key].model_alias))
 
             # Busco el tipo de entidad para generar un alias. Utilizo el mapa de relaciones de la propia entidad.
             for att in class_to_check.__mapper__.relationships:
@@ -522,11 +570,11 @@ class BaseDao(object, metaclass=abc.ABCMeta):
             # Calculo el alias y lo añado al diccionario, siendo la clave el nombre del campo del join
             alias = aliased(relationship_to_join_class, name="_".join(sorted_element.join_split))
             # Añado un objeto al mapa para tener mejor controlados estos datos
-            aliases_dict[key] = _SQLModelHelper(model_type=relationship_to_join_class,
-                                                model_alias=alias,
-                                                model_owner_type=class_to_check,
-                                                owner_breadcrumb=owner_breadcrumb,
-                                                field_name=field_to_check,
-                                                model_field_value=relationship_to_join_value)
+            alias_dict[key] = _SQLModelHelper(model_type=relationship_to_join_class,
+                                              model_alias=alias,
+                                              model_owner_type=class_to_check,
+                                              owner_breadcrumb=owner_breadcrumb,
+                                              field_name=field_to_check,
+                                              model_field_value=relationship_to_join_value)
 
         return join_clauses_sortened

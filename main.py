@@ -42,7 +42,12 @@ def query_2():
                    is_join_with_fetch=True)
     ]
 
-    result = service.select(join_clauses=joins)
+    filters: List[FilterClause] = [
+        FilterClause(field_name="tipo_cliente.usuario_creacion.username", filter_type=EnumFilterTypes.LIKE,
+                     object_to_compare="q")
+    ]
+
+    result = service.select(join_clauses=joins, filter_clauses=filters)
 
     for r in result:
         print(f"\nTipo cliente: {r.tipo_cliente} \n "
