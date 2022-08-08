@@ -4,21 +4,31 @@ import types
 from functools import wraps
 
 
-class CustomException(Exception):
+class MyCustomException(Exception):
     """Excepción personalizada, a modo de barrera de fallos para intepretar las excepciones y no perder su
     información. Se utiliza en los servicios.
     """
 
-    # Constructor
-    def __init__(self, trace, exception: Exception = None, exception_type=None):
+    def __init__(self, message: str, trace: str = None, source_exception: Exception = None, exception_type: any = None):
         Exception.__init__(self)
+        self.message = message
+        """Mensaje de la excepción"""
         self.trace = trace
-        self.exception = exception
-        self.exception_type = exception_type
+        """Traza del error. Puede ser null (por ejemplo para el caso de excepciones controladas, 
+        como validación de parámetros)."""
+        self.source_exception = source_exception
+        """Excepción a partir de la que se ha originado la excepción personalizada. Puede ser null."""
 
-    # Implementación de toString
+        self.exception_type = type(self).__name__
+        """Tipo de excepción."""
+
+        # Si hay excepción origen, utilizo su tipo.
+        if self.source_exception is not None:
+            self.exception_type = exception_type if exception_type is not None else type(self.source_exception).__name__
+
     def __str__(self):
-        return self.exception_type + ": " + str(self.exception) + "\n\n" + self.trace
+        return self.exception_type + (": " + str(self.source_exception) if self.source_exception is not None else "") \
+               + f"\n{self.message}" + ("\n\nTrace:\n" + self.trace if self.trace is not None else "")
 
 
 def catch_exceptions(function):
@@ -37,7 +47,7 @@ def catch_exceptions(function):
             # Python puede devolver la ejecución de una función
             # Si se produce algún error, uso el código except... para capturarla y tratarla a modo de barrera de fallos
             return function(*args, **kwargs)
-        except CustomException as c:
+        except MyCustomException as c:
             # Si ya ha sido envuelta en una CustomException, que la devuelva directamente
             raise c
         except Exception as e:
@@ -52,8 +62,13 @@ def catch_exceptions(function):
             if len(formatted_traceback_split) > 2:
                 formatted_traceback = '\n'.join(formatted_traceback_split[2:])
 
+            # Mensaje
+            message: str = "An exception of type {0} occurred. Arguments:\n{1!r}". \
+                format(type(e).__name__, e.args)
+
             # Envuelvo la excepción en una CustomException
-            raise CustomException(formatted_traceback, e, exc_type.__name__)
+            raise MyCustomException(message=message, trace=formatted_traceback,
+                                    source_exception=e, exception_type=exc_type.__name__)
 
     return decorator
 
