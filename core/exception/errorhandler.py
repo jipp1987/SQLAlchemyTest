@@ -2,7 +2,6 @@ import sys
 import traceback
 import types
 from functools import wraps
-from typing import Tuple, List
 
 
 class CustomException(Exception):
@@ -10,41 +9,16 @@ class CustomException(Exception):
     información. Se utiliza en los servicios.
     """
 
-    __known_error_types: List[Tuple] = [("IntegrityError", "There was an error when entering or modifying the record, "
-                                                           "it is possible that there is one like it."),
-                                        ("OperationalError", "An error occurred with one of the fields in the object.")]
-    """Errores conocidos y su clave i18n de error conocido, es lo que se intenta mostrar al usuario."""
-
     # Constructor
-    def __init__(self, trace, exception: Exception = None, exception_type=None, line=None):
+    def __init__(self, trace, exception: Exception = None, exception_type=None):
         Exception.__init__(self)
         self.trace = trace
         self.exception = exception
         self.exception_type = exception_type
-        self.line = line
-        self.known_error = self.handle_known_exception()
 
     # Implementación de toString
     def __str__(self):
-        return (self.known_error if self.known_error is not None else "") + self.trace
-
-    # A partir del tipo de excepción, establece un error conocido, normalmente para mostrar al usuario
-    def handle_known_exception(self):
-        """
-        A partir del tipo de excepción, establece un error conocido, normalmente para mostrar al usuario
-        :return: Mensaje con un mensaje que mostrar al usuario a partir de una excepción conocida
-        """
-        known_error = self.exception_type
-
-        if self.exception_type is not None:
-            for pair_values in type(self).__known_error_types:
-                # El tipo de excepción es la clave del diccionario
-                if self.exception_type == pair_values[0]:
-                    # Esto es el valor, que es una clave i18n y es el error conocido
-                    known_error = pair_values[1]
-                    break
-
-        return known_error
+        return self.exception_type + ": " + str(self.exception) + "\n\n" + self.trace
 
 
 def catch_exceptions(function):
@@ -66,34 +40,20 @@ def catch_exceptions(function):
         except CustomException as c:
             # Si ya ha sido envuelta en una CustomException, que la devuelva directamente
             raise c
-        except Exception:
+        except Exception as e:
             # De esta forma obtengo información de la excepción
             exc_type, exc_instance, exc_traceback = sys.exc_info()
 
             # Con esto le doy un formato legible a la traza
-            formatted_traceback = ''.join(traceback.format_tb(exc_traceback))
+            formatted_traceback: str = ''.join(traceback.format_tb(exc_traceback))
 
-            # Las dos primeras líneas siempre van a ser las de exceptionhandler, las dos siguientes serán las de la
-            # última llamada antes de lanzar el error, me interesan porque en ellas tengo el fichero, línea y función
-            # donde falló
-            formatted_traceback_split = formatted_traceback.split("\n")
-            error_line = None
+            # Elimino las dos primeras líneas, se corresponden que el errorhandler y no las quiero en la traza.
+            formatted_traceback_split: list = formatted_traceback.split("\n")
+            if len(formatted_traceback_split) > 2:
+                formatted_traceback = '\n'.join(formatted_traceback_split[2:])
 
-            # Sólo lo capturo si tiene al menos seis líneas
-            if formatted_traceback_split is not None and len(formatted_traceback_split) > 5:
-                # Muestro un par de líneas, por si acaso la función está envuelta en otra
-                # La primera línea la ignoro, es la del propio errorhandler
-                error_line = '\n'.join(formatted_traceback_split[2:6])
-
-            # Elaboro el mensaje con la traza formateada, el tipo de error y el mensaje de error como tal
-            message = '\n{0}\n{1}:\n{2}'.format(
-                formatted_traceback,
-                exc_type.__name__,
-                exc_instance
-            )
-
-            # ojo porque lo que me interesa es lanzar la excepción hacia arriba, envuelta en una CustomException
-            raise CustomException(message, exc_instance, exc_type.__name__, error_line)
+            # Envuelvo la excepción en una CustomException
+            raise CustomException(formatted_traceback, e, exc_type.__name__)
 
     return decorator
 

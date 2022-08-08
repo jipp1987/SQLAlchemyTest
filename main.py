@@ -1,3 +1,4 @@
+import sys
 from typing import List
 
 from core.dao.basedao import BaseDao
@@ -68,4 +69,7 @@ if __name__ == '__main__':
     d = read_section_in_ini_file(file_name="db", section="MyDataBase")
     BaseDao.set_db_config_values(**d)
 
-    query_2()
+    try:
+        query_2()
+    except Exception as e:
+        print(e, file=sys.stderr)
