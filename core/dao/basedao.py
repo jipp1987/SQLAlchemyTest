@@ -461,8 +461,23 @@ class BaseDao(object, metaclass=abc.ABCMeta):
         :param alias_dict: Diccionario de alias.
         :returns: Statement SQL con los joins añadidos.
         """
-        # Lista de opciones para el join, para añadirlo al final
-        join_options_final = []
+        join_options_final: list = []
+        """Lista de opciones para el join, para añadirlo al final"""
+
+        # Declaración de campos a emplear en el bucle
+        join_options: list
+        """Lista de opciones para cada claúsula join."""
+        relationship_to_join: any
+        """Campo de relación a unir."""
+        alias: str
+        """Alias de la tabla. La forma de representarlo en la consulta es: 
+        join(Cliente.tipo_cliente.of_type(alias_0))"""
+        is_outer: bool
+        """Bool para saber si es un left_join o un inner_join."""
+        bread_crumbs: list
+        """Lista de migas de pan de la entidad desde la principal del DAO hasta la objetivo del join. Por ejemplo: 
+        "tipo_cliente.usuario_creacion" sería: Cliente.tipo_cliente, TipoCliente.usuario_ult_mod.of_type(alias_X). 
+        De alguna manera el ORM debe saber de dónde viene el campo."""
 
         for j in join_clauses:
             # Recuepero el valor del join, el campo del modelo por el que se va a hacer join
@@ -485,7 +500,7 @@ class BaseDao(object, metaclass=abc.ABCMeta):
 
             # Comprobar el tipo de join; utilizo sólo el último elemento de join_options, en la función del join no
             # hace falta cargar toda la miga de pan, sólo el elemento hacia el que se hace join.
-            is_outer: bool = True if j.join_type is not None and j.join_type == EnumJoinTypes.LEFT_JOIN else False
+            is_outer = True if j.join_type is not None and j.join_type == EnumJoinTypes.LEFT_JOIN else False
             stmt = stmt.join(join_options[-1], isouter=is_outer)
 
             # Si tiene fetch, añadir una opción para traerte todos los campos para rellenar el objeto relation_ship.
@@ -509,11 +524,38 @@ class BaseDao(object, metaclass=abc.ABCMeta):
         anidadas contando desde la entidad principal se situarán en las últimas posiciones. Es importante respetar este
         orden para que la consulta funcione bien.
         """
-        # Creo un namedtuple para la operación de ordenación. La idea es separar los campos por el separador "." y
-        # ordenarlos en función del tamaño del array resultante, así los campos más anidados estarán al final y el
-        # diccionario siempre contendrá a sus "padres" antes de tratarlo.
         join_sorted = namedtuple("join_sorted", ["join_split", "join_clause"])
+        """Creo un namedtuple para la operación de ordenación. La idea es separar los campos por el separador "." y
+        ordenarlos en función del tamaño del array resultante, así los campos más anidados estarán al final y el
+        diccionario siempre contendrá a sus "padres" antes de tratarlo."""
         join_sorted_list: List[join_sorted] = []
+        """Lista de objetos auxiliares namedtuple para ordenar los elementos de la lista de joins según su nivel de 
+        anidamiento."""
+
+        # Declaración de campos a emplear en el bucle
+        rel_split: list
+        """Se utiliza para la ordenación de los joins teniendo en cuenta su nivel de anidamiento."""
+        join_clauses_sortened: List[JoinClause]
+        """Lista de joins ordenada, con independecia de lo enviado por el llamante del método select."""
+        join_clause: JoinClause
+        """Join clause a tratar."""
+        relationship_to_join_class: Union[type, None]
+        """Clase del campo relación correspondiente al join."""
+        key: str
+        """Clave a almacenar en el diccionario."""
+        field_to_check: str
+        """Nombre del campo a comprobar"""
+        class_to_check: any
+        """Clase a comprobar."""
+        previous_key: str
+        """Clave anterior para la construcción de la miga de pan."""
+        relationship_to_join_value: any
+        """Atributo del campo de la relación asociada al join."""
+        owner_breadcrumb: List[tuple]
+        """Miga de pan del elemento inmediatamente anterior al perteneciente al join, que debe añadirse siempre a 
+        la miga de pan propia inmediatamente antes de su propio campo."""
+        rel_field_name: str
+        """Nombre del campo de la relación."""
 
         # Primera pasada para ordenar las join_clauses
         for join_clause in join_clauses:
@@ -525,33 +567,33 @@ class BaseDao(object, metaclass=abc.ABCMeta):
 
         # Es importante que los joins estén ordenados en la consulta final, aprovecho la lista auxiliar
         # ordenada para rehacer la lista original
-        join_clauses_sortened: List[JoinClause] = []
+        join_clauses_sortened = []
 
         for sorted_element in join_sorted_list:
             join_clause = sorted_element.join_clause
             join_clauses_sortened.append(join_clause)
-            relationship_to_join_class: Union[type, None] = None
+            relationship_to_join_class = None
 
-            key: str = join_clause.relationship_field_name
+            key = join_clause.relationship_field_name
 
             # El campo a comprobar será siempre el último elemento del array split
-            field_to_check: str = sorted_element.join_split[-1]
+            field_to_check = sorted_element.join_split[-1]
             class_to_check = self.entity_type
 
             # Primero intento recuperar el valor del mapa, para así obtener los datos del elemento inmediatamente
             # anterior. La clave a recuperar no es la actual, sino la del elemento anterior, para lo cual tengo que
             # acceder al penúltimo nivel del array
             if len(sorted_element.join_split) > 1:
-                previous_key: str = ".".join(sorted_element.join_split[:-1])
+                previous_key = ".".join(sorted_element.join_split[:-1])
                 class_to_check = alias_dict[previous_key].model_type
 
             # Si no es el caso, asumimos que pertenece a la entidad principal del dao
-            relationship_to_join_value: any = getattr(class_to_check, field_to_check)
+            relationship_to_join_value = getattr(class_to_check, field_to_check)
 
             # Esto lo necesito porque si es una entidad anidad sobre otra entidad anidada, necesito toda
             # la "miga de pan" para que el join funcione correctamente, si sólo especifico el último valor no entenderá
             # de dónde viene la entidad.
-            owner_breadcrumb: List[tuple] = []
+            owner_breadcrumb = []
             if len(sorted_element.join_split) > 1:
                 previous_key: str = ".".join(sorted_element.join_split[:-1])
                 # Primero añado la lista que ya tuviera el propietario, a modo de miga de pan
