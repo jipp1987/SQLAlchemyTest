@@ -481,15 +481,15 @@ class BaseDao(object, metaclass=abc.ABCMeta):
 
         for j in join_clauses:
             # Recuepero el valor del join, el campo del modelo por el que se va a hacer join
-            relationship_to_join = alias_dict[j.relationship_field_name].model_field_value
+            relationship_to_join = alias_dict[j.field_name].model_field_value
 
             # Recupero el alias calculated anteriormente
-            alias = alias_dict[j.relationship_field_name].model_alias
+            alias = alias_dict[j.field_name].model_alias
 
             # Compruebo si es una entidad anidada sobre otra entidad a través del campo owner_breadcrumb
             join_options = []
-            if alias_dict[j.relationship_field_name].owner_breadcrumb:
-                bread_crumbs = alias_dict[j.relationship_field_name].owner_breadcrumb
+            if alias_dict[j.field_name].owner_breadcrumb:
+                bread_crumbs = alias_dict[j.field_name].owner_breadcrumb
                 for b in bread_crumbs:
                     join_options.append(b[0])
 
@@ -559,7 +559,7 @@ class BaseDao(object, metaclass=abc.ABCMeta):
 
         # Primera pasada para ordenar las join_clauses
         for join_clause in join_clauses:
-            rel_split = join_clause.relationship_field_name.split(".")
+            rel_split = join_clause.field_name.split(".")
             join_sorted_list.append(join_sorted(join_split=rel_split, join_clause=join_clause))
 
         # Ordenar la lista en función del número de elementos
@@ -574,7 +574,7 @@ class BaseDao(object, metaclass=abc.ABCMeta):
             join_clauses_sortened.append(join_clause)
             relationship_to_join_class = None
 
-            key = join_clause.relationship_field_name
+            key = join_clause.field_name
 
             # El campo a comprobar será siempre el último elemento del array split
             field_to_check = sorted_element.join_split[-1]

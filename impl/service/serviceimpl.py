@@ -46,7 +46,7 @@ class ClienteServiceImpl(BaseService):
         print(f"\nNuevo tipo de cliente CUATRO ---> {tipo_cliente_4}\n")
 
         joins: List[JoinClause] = [
-            JoinClause(relationship_field_name="tipo_cliente", join_type=EnumJoinTypes.INNER_JOIN,
+            JoinClause(field_name="tipo_cliente", join_type=EnumJoinTypes.INNER_JOIN,
                        is_join_with_fetch=True)
         ]
 
@@ -55,8 +55,7 @@ class ClienteServiceImpl(BaseService):
         for x in result:
             print(x.tipo_cliente)
 
-        if 1 == 1:
-            raise Exception("ERROR!!!!!")
+        tipo_cliente_service.delete_by_id(tipo_cliente_4.id)
 
 
 class TipoClienteServiceImpl(BaseService):

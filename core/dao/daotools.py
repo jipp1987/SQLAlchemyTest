@@ -100,7 +100,9 @@ class FilterClause(object):
     def __init__(self, field_name: str, filter_type: (EnumFilterTypes, str), object_to_compare: any,
                  operator_type: (EnumOperatorTypes, str) = None, related_filter_clauses: list = None):
         self.field_name = field_name
-        """Nombre del campo."""
+        """Nombre del campo de la relación, respetando el nivel de anidamiento contando desde la entidad principal sin 
+        incluirla, por ejemplo si para el dao de Clientes: tipo_cliente.usuario_creacion sería un join desde Clientes a 
+        TipoCliente y de TipoCliente a Usuario."""
         self.filter_type = filter_type if isinstance(filter_type, EnumFilterTypes) else EnumFilterTypes[filter_type]
         """Tipo de filtro."""
         self.object_to_compare = object_to_compare
@@ -116,8 +118,8 @@ class FilterClause(object):
 class JoinClause(object):
     """Clase para modelado de cláusulas JOIN."""
 
-    def __init__(self, relationship_field_name: str, join_type: (EnumJoinTypes, str), is_join_with_fetch: bool = False):
-        self.relationship_field_name = relationship_field_name
+    def __init__(self, field_name: str, join_type: (EnumJoinTypes, str), is_join_with_fetch: bool = False):
+        self.field_name = field_name
         """Nombre del campo de la relación entre entidades sobre la que se quiere hacer join."""
         self.join_type = join_type if isinstance(join_type, EnumJoinTypes) else EnumJoinTypes[join_type]
         """Tipo de cláusula JOIN."""

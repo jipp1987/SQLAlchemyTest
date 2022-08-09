@@ -31,15 +31,15 @@ def query_2():
     service = ServiceFactory.get_service(ClienteServiceImpl)
 
     joins: List[JoinClause] = [
-        JoinClause(relationship_field_name="tipo_cliente.usuario_creacion", join_type=EnumJoinTypes.LEFT_JOIN,
+        JoinClause(field_name="tipo_cliente.usuario_creacion", join_type=EnumJoinTypes.LEFT_JOIN,
                    is_join_with_fetch=True),
-        JoinClause(relationship_field_name="tipo_cliente.usuario_ult_mod", join_type=EnumJoinTypes.LEFT_JOIN,
+        JoinClause(field_name="tipo_cliente.usuario_ult_mod", join_type=EnumJoinTypes.LEFT_JOIN,
                    is_join_with_fetch=True),
-        JoinClause(relationship_field_name="usuario_ult_mod", join_type=EnumJoinTypes.LEFT_JOIN,
+        JoinClause(field_name="usuario_ult_mod", join_type=EnumJoinTypes.LEFT_JOIN,
                    is_join_with_fetch=True),
-        JoinClause(relationship_field_name="usuario_creacion", join_type=EnumJoinTypes.LEFT_JOIN,
+        JoinClause(field_name="usuario_creacion", join_type=EnumJoinTypes.LEFT_JOIN,
                    is_join_with_fetch=True),
-        JoinClause(relationship_field_name="tipo_cliente", join_type=EnumJoinTypes.INNER_JOIN,
+        JoinClause(field_name="tipo_cliente", join_type=EnumJoinTypes.INNER_JOIN,
                    is_join_with_fetch=True)
     ]
 
