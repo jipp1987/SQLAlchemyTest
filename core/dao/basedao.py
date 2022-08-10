@@ -11,7 +11,8 @@ from sqlalchemy.engine import Engine
 from sqlalchemy.orm import sessionmaker, declarative_base, contains_eager, aliased
 from sqlalchemy.sql import expression
 
-from core.dao.daotools import FilterClause, EnumFilterTypes, EnumOperatorTypes, JoinClause, EnumJoinTypes
+from core.dao.daotools import FilterClause, EnumFilterTypes, EnumOperatorTypes, JoinClause, EnumJoinTypes, \
+    OrderByClause, GroupByClause
 
 _SQLEngineTypes = namedtuple('SQLEngineTypes', ['value', 'engine_name'])
 """Tupla para propiedades de EnumSQLEngineTypes. La uso para poder añadirle una propiedad al enumerado, aparte del 
@@ -306,6 +307,76 @@ class BaseDao(object, metaclass=abc.ABCMeta):
 
         return result
 
+    def __resolve_fields_info(self, aliases_dict: Dict[str, _SQLModelHelper],
+                              clauses: Union[List[FilterClause],
+                                             List[OrderByClause],
+                                             List[GroupByClause]]) -> dict:
+        """
+        Resuelve la información de los campos para las cláusulas de filter, group by, order by y campos individuales.
+        :param aliases_dict:
+        :param clauses:
+        :return: dicr
+        """
+        # Lo utilizo para separar el campo del filtro por los puntos y así obtener primero la entidad relacionada
+        # (la lista hasta el último elemento sin incluir) y el nombre del campo por el que se va a filtrar. Lo
+        # necesito para recuperar el alias del diccionario de alias, así como para tratar el tipo de dato por si
+        # fuese por ejemplo una fecha.
+        clause_split: List[str]
+        entity_breadcrumb: str
+        clause_entity: BaseEntity
+        field_alias: any
+        field_to_work_with: any
+        mapper: any
+
+        # También voy a recuperar el tipo de campo por el que filtrar, lo voy a necesitar para tratar ciertos
+        # tipos de filtros como por ejemplo filtro por fechas.
+        field_type: any
+
+        # Utilizo un namedtuple con los campos de alias, entidad, tipo de campo y el campo con el que se va a trabajar
+        field_info = namedtuple("field_info", ["field_alias", "clause_entity", "field_type",
+                                               "field_to_work_with"])
+
+        field_info_dict: dict = {}
+
+        for clause in clauses:
+            clause_split = clause.field_name.split(".")
+            # Obtengo la entidad relacionada descartanto el último elemento; se va a corresponder con la clave
+            # del diccionario de alias
+            entity_breadcrumb = ".".join(clause_split[:-1]) if len(clause_split) > 1 else None
+
+            # El campo por el que filtrar será siempre el último del split
+            field_to_work_with = clause_split[-1]
+
+            # En función de si es una entidad anidada, preparo los campos
+            if entity_breadcrumb is None:
+                # Si no existe miga de pan, es que no es una entidad anidada, la consulta se hace sobre la propia
+                # entidad base.
+                clause_entity = self.entity_type
+                field_alias = None
+            else:
+                # Si existe miga de pan, es un filtro por algún campo anidado respecto a la entidad base; recupero
+                # la información desde el diccionario de alias.
+                clause_entity = aliases_dict[entity_breadcrumb].model_type
+                field_alias = aliases_dict[entity_breadcrumb].model_alias
+
+            # Recupero el tipo de campo para tratar ciertos filtros especiales, como las fechas
+            mapper = inspect(clause_entity)
+            field_type = mapper.columns[field_to_work_with].type
+
+            # Obtengo el propio campo para filtrar
+            # Si existe alias, hay que utilizarlo en los filtros (para el caso de entidades anidadas)
+            if field_alias is not None:
+                field_to_work_with = getattr(field_alias, field_to_work_with)
+            else:
+                field_to_work_with = getattr(clause_entity, field_to_work_with)
+
+            # Añadir mapa con información del campo, siendo la clave el nombre del campo en la cláusula
+            field_info_dict[clause.field_name] = field_info(field_alias=field_alias, field_type=field_type,
+                                                            field_to_work_with=field_to_work_with,
+                                                            clause_entity=clause_entity)
+
+        return field_info_dict
+
     def __resolve_filter_clauses(self, filter_clauses: List[FilterClause], stmt,
                                  alias_dict: Dict[str, _SQLModelHelper]):
         """
@@ -348,60 +419,29 @@ class BaseDao(object, metaclass=abc.ABCMeta):
                 for related_filter in filter_clause.related_filter_clauses:
                     inner_filter_list.append(related_filter)
 
+            # Obtengo la información del campo
+            field_info_dict = self.__resolve_fields_info(aliases_dict=aliases_dict_inner, clauses=inner_filter_list)
+
             # Lista final de expresiones que se añadirán al operador al final
             inner_expression_list = []
 
-            # Lo utilizo para separar el campo del filtro por los puntos y así obtener primero la entidad relacionada
-            # (la lista hasta el último elemento sin incluir) y el nombre del campo por el que se va a filtrar. Lo
-            # necesito para recuperar el alias del diccionario de alias, así como para tratar el tipo de dato por si
-            # fuese por ejemplo una fecha.
-            filter_clause_split: List[str]
-            entity_breadcrumb: str
-            filter_entity: BaseEntity
-            field_alias: any
+            filter_expression: any
+            field_info: any
+            field_type: type
             field_to_filter_by: any
-            mapper: any
-
-            # También voy a recuperar el tipo de campo por el que filtrar, lo voy a necesitar para tratar ciertos
-            # tipos de filtros como por ejemplo filtro por fechas.
-            field_type: any
 
             # Lo normal es que sea un sólo filtro, pero con esto puedo controlar la posibilidad de que haya varios
             # filtros relacionados dentro de un paréntesis.
             for f in inner_filter_list:
+                # Recupero la información del campo del diccionario
+                field_info = field_info_dict[f.field_name]
+
+                # Información del campo
+                field_type = field_info.field_type
+                field_to_filter_by = field_info.field_to_work_with
+
                 # Expresión a añadir
-                filter_expression: any = None
-
-                filter_clause_split = f.field_name.split(".")
-                # Obtengo la entidad relacionada descartanto el último elemento; se va a corresponder con la clave
-                # del diccionario de alias
-                entity_breadcrumb = ".".join(filter_clause_split[:-1]) if len(filter_clause_split) > 1 else None
-
-                # El campo por el que filtrar será siempre el último del split
-                field_to_filter_by = filter_clause_split[-1]
-
-                # En función de si es una entidad anidada, preparo los campos
-                if entity_breadcrumb is None:
-                    # Si no existe miga de pan, es que no es una entidad anidada, la consulta se hace sobre la propia
-                    # entidad base.
-                    filter_entity = self.entity_type
-                    field_alias = None
-                else:
-                    # Si existe miga de pan, es un filtro por algún campo anidado respecto a la entidad base; recupero
-                    # la información desde el diccionario de alias.
-                    filter_entity = aliases_dict_inner[entity_breadcrumb].model_type
-                    field_alias = aliases_dict_inner[entity_breadcrumb].model_alias
-
-                # Recupero el tipo de campo para tratar ciertos filtros especiales, como las fechas
-                mapper = inspect(filter_entity)
-                field_type = mapper.columns[field_to_filter_by].type
-
-                # Obtengo el propio campo para filtrar
-                # Si existe alias, hay que utilizarlo en los filtros (para el caso de entidades anidadas)
-                if field_alias is not None:
-                    field_to_filter_by = getattr(field_alias, field_to_filter_by)
-                else:
-                    field_to_filter_by = getattr(filter_entity, field_to_filter_by)
+                filter_expression = None
 
                 # Voy comprobando el tipo de filtro y construyendo la expresión de forma adecuada según los criterios de
                 # SQLAlchemy
