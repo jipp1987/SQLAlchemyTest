@@ -1,4 +1,4 @@
-from sqlalchemy import select
+from sqlalchemy import select, and_, or_
 from sqlalchemy.orm import aliased, contains_eager
 
 from core.dao.basedao import BaseDao
@@ -31,7 +31,16 @@ class ClienteDaoImpl(BaseDao):
         my_session = type(self).get_session_for_current_thread()
 
         # select cliente, cliente.tipocliente, cliente.tipocliente.usuario_creacion, cliente.tipocliente.usuario_ultmod,
-        # , cliente.tipocliente.usuario_ultmod, cliente.usuario_ultmod, cliente.usuario_creacion
+        # , cliente.tipocliente.usuario_ultmod, cliente.usuario_ultmod, cliente.usuario_creacion from cliente inner
+        # join tipo_cliente left join cliente.usuario_creacion left join cliente.usuario_ult_mod
+        # left join cliente.tipo_cliente.usuario_creacion left join cliente.tipo_cliente.usuario_ult_mod
+
+        # where cliente.tipo_cliente.codigo like '%0%' and cliente.tipo_cliente.descripcion like '%a%' or
+        # (cliente.tipo_cliente.usuario_creacion.username like '%a%' or
+        # cliente.tipo_cliente.usuario_creacion.username like '%e%')
+
+        # where(or_(and_(alias_0.codigo.like("%0%"), alias_0.descripcion.like("%a%")),
+        #          or_(alias_4.username.like("%a%"), alias_4.username.like("%e%")).self_group()))
 
         alias_0 = aliased(TipoCliente, name="tipo_cliente")
         alias_1 = aliased(Usuario, name="usuario_creacion")
@@ -52,7 +61,8 @@ class ClienteDaoImpl(BaseDao):
             contains_eager(Cliente.tipo_cliente.of_type(alias_0)),
             contains_eager(Cliente.usuario_creacion.of_type(alias_1)),
             contains_eager(Cliente.usuario_ult_mod.of_type(alias_2)),
-        ).where(alias_3.username.like("%a%"))
+        ).where(or_(and_(alias_0.codigo.like("%0%"), alias_0.descripcion.like("%a%")),
+                    or_(alias_4.username.like("%a%"), alias_4.username.like("%e%")).self_group()))
 
         # Ejecutar la consulta
         result = my_session.execute(stmt).scalars().all()

@@ -418,6 +418,18 @@ class BaseDao(object, metaclass=abc.ABCMeta):
         # Obtengo la información del campo
         field_info_dict = self.__resolve_fields_info(aliases_dict=alias_dict, clauses=all_filter_clauses)
 
+        # Este filtro: f1 and f2 or (f3 or f4). La forma de expresarlo en SQLAlchemy sería:
+        # or_(and_(f1, f2), or_(f3, f4).self_group()). Supongamos que fx es ya una expresión ya resuelta de filtros,
+        # como == o like. Hay que ir anidando los filtros en el momento en que cambia el operador, teniendo en cuenta
+        # que si hay paréntesis ese filtro no envuelve a los otros sino que va por su cuenta con la función
+        # "self_group".
+
+        # Para automatizar esto, tengo que recorrer la lista de filtros, y en el momento en que el siguiente elemento
+        # cambie de operador, envolver los filtros hasta ese momento en un and_ o un or_, y dejarlo listo para añadirlo
+        # en el siguiente filtro tratado (siempre antes de éste). Si el filtro tiene una lista de filtros asociada
+        # significa que van juntos dentro de un paréntesis, con lo cual la función deberá llamarse de forma recursiva
+        # para resolver estos casos e ir añadiendo el resultado al filtro global.
+
         # Hago el proceso para cada filtro del listado, para controlar los filtros anidados en otros (relacionados
         # entre por paréntesis)
         for filter_q in filter_clauses:
