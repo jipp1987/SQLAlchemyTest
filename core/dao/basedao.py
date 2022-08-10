@@ -1,9 +1,7 @@
 import abc
-import enum
 from collections import namedtuple
 import threading
 from copy import deepcopy
-from dataclasses import dataclass
 from typing import Dict, List, Union
 
 from sqlalchemy import create_engine, select, and_, or_, inspect
@@ -12,41 +10,11 @@ from sqlalchemy.orm import sessionmaker, declarative_base, contains_eager, alias
 from sqlalchemy.sql import expression
 
 from core.dao.daotools import FilterClause, EnumFilterTypes, EnumOperatorTypes, JoinClause, EnumJoinTypes, \
-    OrderByClause, GroupByClause, EnumOrderByTypes
-
-_SQLEngineTypes = namedtuple('SQLEngineTypes', ['value', 'engine_name'])
-"""Tupla para propiedades de EnumSQLEngineTypes. La uso para poder añadirle una propiedad al enumerado, aparte del 
-propio valor."""
-
-
-class EnumSQLEngineTypes(enum.Enum):
-    """Enumerado de tipos de OrderBy."""
-
-    @property
-    def engine_name(self):
-        return self.value.engine_name
-
-    MYSQL = _SQLEngineTypes(1, 'mysql+pymysql')
-    POSTGRESQL = _SQLEngineTypes(2, 'postgresql')
-    SQL_SERVER = _SQLEngineTypes(3, 'pyodbc')
-    ORACLE = _SQLEngineTypes(4, 'oracle')
-    SQL_LITE = _SQLEngineTypes(5, 'sqlite')
+    OrderByClause, GroupByClause, EnumOrderByTypes, EnumSQLEngineTypes, _SQLModelHelper
 
 
 BaseEntity = declarative_base()
 """Declaración de clase para mapeo de todas la entidades de la base de datos."""
-
-
-@dataclass(frozen=True)
-class _SQLModelHelper(object):
-    """Clase auxiliar para tener mejor identificados los distintos atributos relacionados con los alias de los
-    campos que deben utilizarse en la consulta."""
-    model_type: type
-    model_alias: any
-    model_field_value: any
-    model_owner_type: any
-    field_name: str
-    owner_breadcrumb: List[tuple]
 
 
 class BaseDao(object, metaclass=abc.ABCMeta):
@@ -310,76 +278,6 @@ class BaseDao(object, metaclass=abc.ABCMeta):
         my_session.expunge_all()
 
         return result
-
-    def __resolve_fields_info(self, aliases_dict: Dict[str, _SQLModelHelper],
-                              clauses: Union[List[FilterClause],
-                                             List[OrderByClause],
-                                             List[GroupByClause]]) -> dict:
-        """
-        Resuelve la información de los campos para las cláusulas de filter, group by, order by y campos individuales.
-        :param aliases_dict:
-        :param clauses:
-        :return: dicr
-        """
-        # Lo utilizo para separar el campo del filtro por los puntos y así obtener primero la entidad relacionada
-        # (la lista hasta el último elemento sin incluir) y el nombre del campo por el que se va a filtrar. Lo
-        # necesito para recuperar el alias del diccionario de alias, así como para tratar el tipo de dato por si
-        # fuese por ejemplo una fecha.
-        clause_split: List[str]
-        entity_breadcrumb: str
-        clause_entity: any
-        field_alias: any
-        field_to_work_with: any
-        mapper: any
-
-        # También voy a recuperar el tipo de campo por el que filtrar, lo voy a necesitar para tratar ciertos
-        # tipos de filtros como por ejemplo filtro por fechas.
-        field_type: any
-
-        # Utilizo un namedtuple con los campos de alias, entidad, tipo de campo y el campo con el que se va a trabajar
-        field_info = namedtuple("field_info", ["field_alias", "clause_entity", "field_type",
-                                               "field_to_work_with"])
-
-        field_info_dict: dict = {}
-
-        for clause in clauses:
-            clause_split = clause.field_name.split(".")
-            # Obtengo la entidad relacionada descartanto el último elemento; se va a corresponder con la clave
-            # del diccionario de alias
-            entity_breadcrumb = ".".join(clause_split[:-1]) if len(clause_split) > 1 else None
-
-            # El campo por el que filtrar será siempre el último del split
-            field_to_work_with = clause_split[-1]
-
-            # En función de si es una entidad anidada, preparo los campos
-            if entity_breadcrumb is None:
-                # Si no existe miga de pan, es que no es una entidad anidada, la consulta se hace sobre la propia
-                # entidad base.
-                clause_entity = self.entity_type
-                field_alias = None
-            else:
-                # Si existe miga de pan, es un filtro por algún campo anidado respecto a la entidad base; recupero
-                # la información desde el diccionario de alias.
-                clause_entity = aliases_dict[entity_breadcrumb].model_type
-                field_alias = aliases_dict[entity_breadcrumb].model_alias
-
-            # Recupero el tipo de campo para tratar ciertos filtros especiales, como las fechas
-            mapper = inspect(clause_entity)
-            field_type = mapper.columns[field_to_work_with].type
-
-            # Obtengo el propio campo para filtrar
-            # Si existe alias, hay que utilizarlo en los filtros (para el caso de entidades anidadas)
-            if field_alias is not None:
-                field_to_work_with = getattr(field_alias, field_to_work_with)
-            else:
-                field_to_work_with = getattr(clause_entity, field_to_work_with)
-
-            # Añadir mapa con información del campo, siendo la clave el nombre del campo en la cláusula
-            field_info_dict[clause.field_name] = field_info(field_alias=field_alias, field_type=field_type,
-                                                            field_to_work_with=field_to_work_with,
-                                                            clause_entity=clause_entity)
-
-        return field_info_dict
 
     def __resolve_order_by_clauses(self, order_by_clauses: List[OrderByClause], stmt,
                                    alias_dict: Dict[str, _SQLModelHelper]):
@@ -691,3 +589,73 @@ class BaseDao(object, metaclass=abc.ABCMeta):
                                               model_field_value=relationship_to_join_value)
 
         return join_clauses_sortened
+
+    def __resolve_fields_info(self, aliases_dict: Dict[str, _SQLModelHelper],
+                              clauses: Union[List[FilterClause],
+                                             List[OrderByClause],
+                                             List[GroupByClause]]) -> dict:
+        """
+        Resuelve la información de los campos para las cláusulas de filter, group by, order by y campos individuales.
+        :param aliases_dict:
+        :param clauses:
+        :return: dicr
+        """
+        # Lo utilizo para separar el campo del filtro por los puntos y así obtener primero la entidad relacionada
+        # (la lista hasta el último elemento sin incluir) y el nombre del campo por el que se va a filtrar. Lo
+        # necesito para recuperar el alias del diccionario de alias, así como para tratar el tipo de dato por si
+        # fuese por ejemplo una fecha.
+        clause_split: List[str]
+        entity_breadcrumb: str
+        clause_entity: any
+        field_alias: any
+        field_to_work_with: any
+        mapper: any
+
+        # También voy a recuperar el tipo de campo por el que filtrar, lo voy a necesitar para tratar ciertos
+        # tipos de filtros como por ejemplo filtro por fechas.
+        field_type: any
+
+        # Utilizo un namedtuple con los campos de alias, entidad, tipo de campo y el campo con el que se va a trabajar
+        field_info = namedtuple("field_info", ["field_alias", "clause_entity", "field_type",
+                                               "field_to_work_with"])
+
+        field_info_dict: dict = {}
+
+        for clause in clauses:
+            clause_split = clause.field_name.split(".")
+            # Obtengo la entidad relacionada descartanto el último elemento; se va a corresponder con la clave
+            # del diccionario de alias
+            entity_breadcrumb = ".".join(clause_split[:-1]) if len(clause_split) > 1 else None
+
+            # El campo por el que filtrar será siempre el último del split
+            field_to_work_with = clause_split[-1]
+
+            # En función de si es una entidad anidada, preparo los campos
+            if entity_breadcrumb is None:
+                # Si no existe miga de pan, es que no es una entidad anidada, la consulta se hace sobre la propia
+                # entidad base.
+                clause_entity = self.entity_type
+                field_alias = None
+            else:
+                # Si existe miga de pan, es un filtro por algún campo anidado respecto a la entidad base; recupero
+                # la información desde el diccionario de alias.
+                clause_entity = aliases_dict[entity_breadcrumb].model_type
+                field_alias = aliases_dict[entity_breadcrumb].model_alias
+
+            # Recupero el tipo de campo para tratar ciertos filtros especiales, como las fechas
+            mapper = inspect(clause_entity)
+            field_type = mapper.columns[field_to_work_with].type
+
+            # Obtengo el propio campo para filtrar
+            # Si existe alias, hay que utilizarlo en los filtros (para el caso de entidades anidadas)
+            if field_alias is not None:
+                field_to_work_with = getattr(field_alias, field_to_work_with)
+            else:
+                field_to_work_with = getattr(clause_entity, field_to_work_with)
+
+            # Añadir mapa con información del campo, siendo la clave el nombre del campo en la cláusula
+            field_info_dict[clause.field_name] = field_info(field_alias=field_alias, field_type=field_type,
+                                                            field_to_work_with=field_to_work_with,
+                                                            clause_entity=clause_entity)
+
+        return field_info_dict
