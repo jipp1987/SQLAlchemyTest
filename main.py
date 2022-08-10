@@ -2,7 +2,8 @@ import sys
 from typing import List
 
 from core.dao.basedao import BaseDao
-from core.dao.daotools import FilterClause, EnumFilterTypes, EnumOperatorTypes, JoinClause, EnumJoinTypes
+from core.dao.daotools import FilterClause, EnumFilterTypes, EnumOperatorTypes, JoinClause, EnumJoinTypes, \
+    OrderByClause, EnumOrderByTypes
 from core.service.service import ServiceFactory
 from core.utils.fileutils import read_section_in_ini_file
 from impl.service.serviceimpl import TipoClienteServiceImpl, ClienteServiceImpl
@@ -48,7 +49,11 @@ def query_2():
                      object_to_compare="q")
     ]
 
-    result = service.select(join_clauses=joins, filter_clauses=filters)
+    order_by: List[OrderByClause] = [
+        OrderByClause(field_name="tipo_cliente.usuario_ult_mod.username", order_by_type=EnumOrderByTypes.DESC)
+    ]
+
+    result = service.select(join_clauses=joins, filter_clauses=None, order_by_clauses=order_by)
 
     for r in result:
         print(f"\nTipo cliente: {r.tipo_cliente} \n "

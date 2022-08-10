@@ -12,7 +12,7 @@ from sqlalchemy.orm import sessionmaker, declarative_base, contains_eager, alias
 from sqlalchemy.sql import expression
 
 from core.dao.daotools import FilterClause, EnumFilterTypes, EnumOperatorTypes, JoinClause, EnumJoinTypes, \
-    OrderByClause, GroupByClause
+    OrderByClause, GroupByClause, EnumOrderByTypes
 
 _SQLEngineTypes = namedtuple('SQLEngineTypes', ['value', 'engine_name'])
 """Tupla para propiedades de EnumSQLEngineTypes. La uso para poder añadirle una propiedad al enumerado, aparte del 
@@ -266,7 +266,8 @@ class BaseDao(object, metaclass=abc.ABCMeta):
 
     # SELECT
 
-    def select(self, filter_clauses: List[FilterClause] = None, join_clauses: List[JoinClause] = None) \
+    def select(self, filter_clauses: List[FilterClause] = None, join_clauses: List[JoinClause] = None,
+               order_by_clauses: List[OrderByClause] = None) \
             -> List[BaseEntity]:
         """
         Hace una consulta a la base de datos.
@@ -296,7 +297,10 @@ class BaseDao(object, metaclass=abc.ABCMeta):
         if filter_clauses:
             stmt = self.__resolve_filter_clauses(filter_clauses=filter_clauses, stmt=stmt, alias_dict=aliases_dict)
 
-        stmt = stmt.order_by(self.entity_type.id.desc())
+        # Resolver cláusula order by
+        if order_by_clauses:
+            stmt = self.__resolve_order_by_clauses(order_by_clauses=order_by_clauses, stmt=stmt,
+                                                   alias_dict=aliases_dict)
 
         # Ejecutar la consulta
         result = my_session.execute(stmt).scalars().all()
@@ -323,7 +327,7 @@ class BaseDao(object, metaclass=abc.ABCMeta):
         # fuese por ejemplo una fecha.
         clause_split: List[str]
         entity_breadcrumb: str
-        clause_entity: BaseEntity
+        clause_entity: any
         field_alias: any
         field_to_work_with: any
         mapper: any
@@ -376,6 +380,33 @@ class BaseDao(object, metaclass=abc.ABCMeta):
                                                             clause_entity=clause_entity)
 
         return field_info_dict
+
+    def __resolve_order_by_clauses(self, order_by_clauses: List[OrderByClause], stmt,
+                                   alias_dict: Dict[str, _SQLModelHelper]):
+        """
+        Resuelve las cláusulas order by.
+        :param alias_dict: Diccionario de alias de campos.
+        :param order_by_clauses: Lista de cláusulas order by.
+        :param stmt: Statement de SQLAlchemy.
+        :return: Statement de SQLAlchemy con los order by añadidos.
+        """
+        # Obtengo la información de los campos
+        field_info_dict = self.__resolve_fields_info(aliases_dict=alias_dict, clauses=order_by_clauses)
+
+        for o in order_by_clauses:
+            # Recupero la información del campo del diccionario
+            field_info = field_info_dict[o.field_name]
+
+            # Información del campo
+            field_to_order_by = field_info.field_to_work_with
+
+            # Comprobar tipo de order by
+            if o.order_by_type == EnumOrderByTypes.DESC:
+                stmt = stmt.order_by(field_to_order_by.desc())
+            else:
+                stmt = stmt.order_by(field_to_order_by.asc())
+
+        return stmt
 
     def __resolve_filter_clauses(self, filter_clauses: List[FilterClause], stmt,
                                  alias_dict: Dict[str, _SQLModelHelper]):
