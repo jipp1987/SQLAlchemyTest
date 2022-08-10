@@ -319,13 +319,19 @@ class BaseDao(object, metaclass=abc.ABCMeta):
         # Contenido final del filtro en forma de listado que se va a añadir al statement
         filter_content = []
 
-        def __inner_resolve_filter_clauses(filter_clause: FilterClause, aliases_dict_inner: Dict[str, _SQLModelHelper]):
+        def __append_all_filters(filter_clause: FilterClause, filter_list: List[FilterClause]):
+            filter_list.append(filter_clause)
+
+            if filter_clause.related_filter_clauses:
+                for related_filter in filter_clause.related_filter_clauses:
+                    __append_all_filters(related_filter, filter_list)
+
+        def __inner_resolve_filter_clauses(filter_clause: FilterClause, field_info_dict_inner: dict):
             """
             Utilizo esta función interna para resolver los filtros anidados en otros filtros (aquéllos que van a ir
             dentro de un mismo paréntesis).
             :param filter_clause: Filtro a comprobar.
-            :param aliases_dict_inner: Diccionario de alias para recuperar el alias que le corresponde a la entidad
-            propietaria de cada filtro.
+            :param field_info_dict_inner: Diccionario de información de campos.
             :return: None
             """
             # Calcular operador de unión entre filtros
@@ -336,20 +342,9 @@ class BaseDao(object, metaclass=abc.ABCMeta):
             # Paréntesis: si el atributo related_filter_clauses no está vacío, significa que la cláusula está
             # unida a otras dentro de un paréntesis.
             # Creo dos listas, una iniciada con el filtro principal
-            inner_filter_list = [filter_clause]
-
-            has_related_filters: bool = False
-
-            # Si tiene filtros asociados, los añado a la lista interna de filtros para tratarlos todos como uno sólo,
-            # de tal manera que estarán todos dentro de un paréntesis
-            if filter_clause.related_filter_clauses:
-                has_related_filters = True
-
-                for related_filter in filter_clause.related_filter_clauses:
-                    inner_filter_list.append(related_filter)
-
-            # Obtengo la información del campo
-            field_info_dict = self.__resolve_fields_info(aliases_dict=aliases_dict_inner, clauses=inner_filter_list)
+            inner_filter_list = []
+            __append_all_filters(filter_clause, inner_filter_list)
+            has_related_filters: bool = True if filter_clause.related_filter_clauses else False
 
             # Lista final de expresiones que se añadirán al operador al final
             inner_expression_list = []
@@ -363,7 +358,7 @@ class BaseDao(object, metaclass=abc.ABCMeta):
             # filtros relacionados dentro de un paréntesis.
             for f in inner_filter_list:
                 # Recupero la información del campo del diccionario
-                field_info = field_info_dict[f.field_name]
+                field_info = field_info_dict_inner[f.field_name]
 
                 # Información del campo
                 field_type = field_info.field_type
@@ -414,10 +409,19 @@ class BaseDao(object, metaclass=abc.ABCMeta):
             filter_content.append(f_operator(*inner_expression_list).self_group()) if has_related_filters \
                 else filter_content.append(f_operator(*inner_expression_list))
 
+        # Calculo los valores de los campos para reutilizarlos en la función interna de resolución y así optimizar
+        # el proceso. Hay que considerar también los posibles filtros internos
+        all_filter_clauses: List[FilterClause] = []
+        for filter_q in filter_clauses:
+            __append_all_filters(filter_q, all_filter_clauses)
+
+        # Obtengo la información del campo
+        field_info_dict = self.__resolve_fields_info(aliases_dict=alias_dict, clauses=all_filter_clauses)
+
         # Hago el proceso para cada filtro del listado, para controlar los filtros anidados en otros (relacionados
         # entre por paréntesis)
         for filter_q in filter_clauses:
-            __inner_resolve_filter_clauses(filter_q, alias_dict)
+            __inner_resolve_filter_clauses(filter_q, field_info_dict)
 
         # Añado el contenido final del filtro a la cláusula where del statement
         return stmt.where(*filter_content)

@@ -53,7 +53,7 @@ def query_2():
         OrderByClause(field_name="tipo_cliente.usuario_ult_mod.username", order_by_type=EnumOrderByTypes.DESC)
     ]
 
-    result = service.select(join_clauses=joins, filter_clauses=None, order_by_clauses=order_by)
+    result = service.select(join_clauses=joins, filter_clauses=filters, order_by_clauses=None)
 
     for r in result:
         print(f"\nTipo cliente: {r.tipo_cliente} \n "
