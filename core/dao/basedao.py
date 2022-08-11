@@ -408,9 +408,12 @@ class BaseDao(object, metaclass=abc.ABCMeta):
 
                 # Recupero la información del campo del diccionario
                 field_info = field_info_dict_inner[f.field_name]
+
                 # Información del campo
-                # TODO Tratar este campo en el futuro, sobre todo para filtros por fechas
+
+                # Tratar este campo en el futuro, sobre todo para filtros por fechas
                 field_type = field_info.field_type
+
                 field_to_filter_by = field_info.field_to_work_with
 
                 # Expresión a añadir
@@ -430,8 +433,8 @@ class BaseDao(object, metaclass=abc.ABCMeta):
 
                 # Comprobar el operador del siguiente elemento del listado para ver si ha cambiado: si cambia, hay que
                 # agrupar el filtro en el filtro global
-                if idx < len(filter_clauses) - 1 and filter_clauses[idx + 1].operator_type != f.operator_type \
-                        or idx == len(filter_clauses) - 1:
+                if idx < len(inner_filter_clauses) - 1 and inner_filter_clauses[idx + 1].operator_type != \
+                        f.operator_type or idx == len(inner_filter_clauses) - 1:
                     global_filter_content = f_operator(*aux_expression_list) if global_filter_content is None \
                         else f_operator(global_filter_content, *aux_expression_list)
 
