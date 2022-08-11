@@ -411,7 +411,7 @@ class BaseDao(object, metaclass=abc.ABCMeta):
 
                 # Información del campo
 
-                # Tratar este campo en el futuro, sobre todo para filtros por fechas
+                # Tratar este campo en el futuro, principalmente para filtros por fechas
                 field_type = field_info.field_type
 
                 field_to_filter_by = field_info.field_to_work_with
