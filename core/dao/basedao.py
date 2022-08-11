@@ -315,6 +315,7 @@ class BaseDao(object, metaclass=abc.ABCMeta):
         de cada filtro.
         :return: Devuelve el statement con los filtros añadidos
         """
+
         def __append_all_filters(filter_clause: FilterClause, filter_list: List[FilterClause]):
             filter_list.append(filter_clause)
 
@@ -386,18 +387,18 @@ class BaseDao(object, metaclass=abc.ABCMeta):
             # para añadirlo en el siguiente filtro tratado (siempre antes de éste). Si el filtro tiene una lista de
             # filtros asociada significa que van juntos dentro de un paréntesis, con lo cual la función deberá
             # llamarse de forma recursiva para resolver estos casos e ir añadiendo el resultado al filtro global.
-            filter_expression: any
+            filter_expression: expression
             field_info: any
             field_type: type
             field_to_filter_by: any
-            has_related_filters: bool
+            expression_for_nested_filter: expression
 
-            aux_filter_list: list = []
+            aux_expression_list: List[expression] = []
             # Inicializo el operador a None: la clave del proceso es comprobar los cambios de operador entre filtros
             f_operator: Union[expression, None] = None
 
             # Lista global de filtros computados y concatenados por los correspondientes operadores
-            global_filter_content: Union[list, expression] = []
+            global_filter_content: Union[None, expression] = None
 
             for idx, f in enumerate(inner_filter_clauses):
                 # Si el operador es None, significa que el elemento actual tiene un operador diferente que el anterior y
@@ -408,46 +409,35 @@ class BaseDao(object, metaclass=abc.ABCMeta):
                 # Recupero la información del campo del diccionario
                 field_info = field_info_dict_inner[f.field_name]
                 # Información del campo
+                # TODO Tratar este campo en el futuro, sobre todo para filtros por fechas
                 field_type = field_info.field_type
                 field_to_filter_by = field_info.field_to_work_with
 
                 # Expresión a añadir
                 filter_expression = __resolve_filter_expression(filter_clause=f, field_to_filter_by=field_to_filter_by)
 
-                # Añadirla a la lista auxiliar que va reiniciándose con cada cambio de operador entre filtros
-                aux_filter_list.append(filter_expression)
-
                 # Comprobar si tiene filtros anidados: si los tiene, llamar de forma recursiva a esta función para
                 # resolverlos (incluyendo si esos filtros anidados tienen a su vez otros filtros anidados)
-                has_related_filters = True if f.related_filter_clauses else False
-                if has_related_filters:
-                    aux_filter_list.append(__inner_resolve_filter_clauses(f.related_filter_clauses,
-                                                                          field_info_dict_inner))
+                if f.related_filter_clauses:
+                    expression_for_nested_filter = f_operator(filter_expression,
+                                                              __inner_resolve_filter_clauses(f.related_filter_clauses,
+                                                                                             field_info_dict_inner)) \
+                        .self_group()
+                    aux_expression_list.append(expression_for_nested_filter)
+                else:
+                    # Añadirla a la lista auxiliar que va reiniciándose con cada cambio de operador entre filtros
+                    aux_expression_list.append(filter_expression)
 
                 # Comprobar el operador del siguiente elemento del listado para ver si ha cambiado: si cambia, hay que
                 # agrupar el filtro en el filtro global
                 if idx < len(filter_clauses) - 1 and filter_clauses[idx + 1].operator_type != f.operator_type \
                         or idx == len(filter_clauses) - 1:
-                    # Primero añado a la lista global de filtros los filtros computados hasta ahora que compartan el
-                    # mismo operador.
-                    if has_related_filters:
-                        # Si tiene filtros anidados significa que van juntos dentro de un paréntesis, por lo tanto
-                        # hay que añadir self_group a la expresión
-                        global_filter_content = f_operator(*global_filter_content, *aux_filter_list).self_group()
-                    else:
-                        # global_filter_content es de entrada una lista pero si hay más de un filtro y ha cambiado al
-                        # menos una vez de operador se convierte en una expresión. Si aún es una lista significa que
-                        # hasta ese momento no había cambiado de operador
-                        if isinstance(global_filter_content, list) and len(global_filter_content) == 0:
-                            global_filter_content.append(f_operator(*aux_filter_list))
-                        else:
-                            # Si ya hay expresiones y ha cambiado el operador, global_filter_content deja de ser una
-                            # lista y se convierte en una expresión
-                            global_filter_content = f_operator(*global_filter_content, *aux_filter_list)
+                    global_filter_content = f_operator(*aux_expression_list) if global_filter_content is None \
+                        else f_operator(global_filter_content, *aux_expression_list)
 
                     # Reinicio del operador para la siguiente iteración
                     f_operator = None
-                    aux_filter_list = []
+                    aux_expression_list = []
 
             return global_filter_content
 

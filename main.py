@@ -20,11 +20,12 @@ def query_1():
                             operator_type=EnumOperatorTypes.OR)
 
     filter_3 = FilterClause(field_name="descripcion", filter_type=EnumFilterTypes.LIKE, object_to_compare="rr")
-    filter_4 = FilterClause(field_name="descripcion", filter_type=EnumFilterTypes.EQUALS, object_to_compare="Genérico")
+    filter_4 = FilterClause(field_name="descripcion", filter_type=EnumFilterTypes.EQUALS, object_to_compare="Genérico",
+                            operator_type=EnumOperatorTypes.AND)
     filter_5 = FilterClause(field_name="codigo", filter_type=EnumFilterTypes.LIKE, object_to_compare="0",
                             operator_type=EnumOperatorTypes.AND)
-    #filter_4.related_filter_clauses = [filter_5]
-    #filter_2.related_filter_clauses = [filter_3, filter_4]
+    filter_4.related_filter_clauses = [filter_5]
+    filter_2.related_filter_clauses = [filter_3, filter_4]
 
     filters: List[FilterClause] = [filter_1, filter_6, filter_2]
 
