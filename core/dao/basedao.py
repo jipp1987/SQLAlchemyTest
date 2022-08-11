@@ -422,6 +422,9 @@ class BaseDao(object, metaclass=abc.ABCMeta):
                 # Comprobar si tiene filtros anidados: si los tiene, llamar de forma recursiva a esta función para
                 # resolverlos (incluyendo si esos filtros anidados tienen a su vez otros filtros anidados)
                 if f.related_filter_clauses:
+                    # Estoy envolviendo el contenido en el operador del filtro propietario de los filtros anidados,
+                    # primero lo pongo a él y luego la resolución de los filtros asociados (que a su vez pueden
+                    # contener otros filtros, pero al llamar de forma recursiva a la función se resolverán todos)
                     expression_for_nested_filter = f_operator(filter_expression,
                                                               __inner_resolve_filter_clauses(f.related_filter_clauses,
                                                                                              field_info_dict_inner)) \
@@ -441,6 +444,10 @@ class BaseDao(object, metaclass=abc.ABCMeta):
                     # Reinicio del operador para la siguiente iteración
                     f_operator = None
                     aux_expression_list = []
+                else:
+                    # En este caso que no haga nada, que continúe con el bucle porque significa que el siguiente filtro
+                    # está unido a éste con el mismo operador y deben resolverse los dos a la vez.
+                    pass
 
             return global_filter_content
 
