@@ -14,8 +14,11 @@ def query_1():
 
     filter_1 = FilterClause(field_name="codigo", filter_type=EnumFilterTypes.LIKE, object_to_compare="0")
 
+    filter_6 = FilterClause(field_name="descripcion", filter_type=EnumFilterTypes.LIKE, object_to_compare="a")
+
     filter_2 = FilterClause(field_name="descripcion", filter_type=EnumFilterTypes.LIKE, object_to_compare="iv",
                             operator_type=EnumOperatorTypes.OR)
+
     filter_3 = FilterClause(field_name="descripcion", filter_type=EnumFilterTypes.LIKE, object_to_compare="rr")
     filter_4 = FilterClause(field_name="descripcion", filter_type=EnumFilterTypes.EQUALS, object_to_compare="Genérico")
     filter_5 = FilterClause(field_name="codigo", filter_type=EnumFilterTypes.LIKE, object_to_compare="0",
@@ -23,7 +26,7 @@ def query_1():
     #filter_4.related_filter_clauses = [filter_5]
     #filter_2.related_filter_clauses = [filter_3, filter_4]
 
-    filters: List[FilterClause] = [filter_1, filter_2]
+    filters: List[FilterClause] = [filter_1, filter_6, filter_2]
 
     result = service.select(filter_clauses=filters)
 
@@ -78,6 +81,6 @@ if __name__ == '__main__':
     BaseDao.set_db_config_values(**d)
 
     try:
-        query_2()
+        query_1()
     except Exception as e:
         print(e, file=sys.stderr)

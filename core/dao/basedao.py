@@ -12,7 +12,6 @@ from sqlalchemy.sql import expression
 from core.dao.daotools import FilterClause, EnumFilterTypes, EnumOperatorTypes, JoinClause, EnumJoinTypes, \
     OrderByClause, GroupByClause, EnumOrderByTypes, EnumSQLEngineTypes, _SQLModelHelper
 
-
 BaseEntity = declarative_base()
 """Declaración de clase para mapeo de todas la entidades de la base de datos."""
 
@@ -316,9 +315,6 @@ class BaseDao(object, metaclass=abc.ABCMeta):
         de cada filtro.
         :return: Devuelve el statement con los filtros añadidos
         """
-        # Contenido final del filtro en forma de listado que se va a añadir al statement
-        filter_content = []
-
         def __append_all_filters(filter_clause: FilterClause, filter_list: List[FilterClause]):
             filter_list.append(filter_clause)
 
@@ -326,88 +322,134 @@ class BaseDao(object, metaclass=abc.ABCMeta):
                 for related_filter in filter_clause.related_filter_clauses:
                     __append_all_filters(related_filter, filter_list)
 
-        def __inner_resolve_filter_clauses(filter_clause: FilterClause, field_info_dict_inner: dict):
+        def __resolve_filter_expression(filter_clause: FilterClause, field_to_filter_by: any):
             """
-            Utilizo esta función interna para resolver los filtros anidados en otros filtros (aquéllos que van a ir
-            dentro de un mismo paréntesis).
-            :param filter_clause: Filtro a comprobar.
-            :param field_info_dict_inner: Diccionario de información de campos.
-            :return: None
+            Resuelve la expresión del filter clause.
+            :param filter_clause:
+            :param field_to_filter_by:
+            :return: filter_expression
             """
-            # Calcular operador de unión entre filtros
-            f_operator: expression = and_
-            if filter_clause.operator_type is not None and filter_clause.operator_type == EnumOperatorTypes.OR:
-                f_operator = or_
+            filter_expression: any = None
 
-            # Paréntesis: si el atributo related_filter_clauses no está vacío, significa que la cláusula está
-            # unida a otras dentro de un paréntesis.
-            # Creo dos listas, una iniciada con el filtro principal
-            inner_filter_list = []
-            __append_all_filters(filter_clause, inner_filter_list)
-            has_related_filters: bool = True if filter_clause.related_filter_clauses else False
+            # Voy comprobando el tipo de filtro y construyendo la expresión de forma adecuada según los criterios de
+            # SQLAlchemy
+            if filter_clause.filter_type == EnumFilterTypes.EQUALS:
+                filter_expression = field_to_filter_by == filter_clause.object_to_compare
+            elif filter_clause.filter_type == EnumFilterTypes.NOT_EQUALS:
+                filter_expression = field_to_filter_by != filter_clause.object_to_compare
+            elif filter_clause.filter_type == EnumFilterTypes.GREATER_THAN:
+                filter_expression = field_to_filter_by > filter_clause.object_to_compare
+            elif filter_clause.filter_type == EnumFilterTypes.LESS_THAN:
+                filter_expression = field_to_filter_by < filter_clause.object_to_compare
+            elif filter_clause.filter_type == EnumFilterTypes.GREATER_THAN_OR_EQUALS:
+                filter_expression = field_to_filter_by >= filter_clause.object_to_compare
+            elif filter_clause.filter_type == EnumFilterTypes.LESS_THAN_OR_EQUALS:
+                filter_expression = field_to_filter_by <= filter_clause.object_to_compare
+            elif filter_clause.filter_type == EnumFilterTypes.LIKE or filter_clause.filter_type == EnumFilterTypes.NOT_LIKE:
+                # Si no incluye porcentaje, le añado yo uno al principio y al final
+                filter_clause.object_to_compare = f'%{filter_clause.object_to_compare}%' if "%" not in filter_clause. \
+                    object_to_compare else filter_clause.object_to_compare
+                filter_expression = field_to_filter_by.like(
+                    filter_clause.object_to_compare) if filter_clause.filter_type == EnumFilterTypes.LIKE \
+                    else field_to_filter_by.not_like(filter_clause.object_to_compare)
+            elif filter_clause.filter_type == EnumFilterTypes.IN:
+                filter_expression = field_to_filter_by.in_(filter_clause.object_to_compare)
+            elif filter_clause.filter_type == EnumFilterTypes.NOT_IN:
+                filter_expression = ~field_to_filter_by.in_(filter_clause.object_to_compare)
+            elif filter_clause.filter_type == EnumFilterTypes.STARTS_WITH:
+                filter_clause.object_to_compare = f'{filter_clause.object_to_compare}%' if not filter_clause. \
+                    object_to_compare.endswith("%") \
+                    else filter_clause.object_to_compare
+                filter_expression = field_to_filter_by.like(filter_clause.object_to_compare)
+            elif filter_clause.filter_type == EnumFilterTypes.ENDS_WITH:
+                filter_clause.object_to_compare = f'%{filter_clause.object_to_compare}' if not filter_clause. \
+                    object_to_compare.startswith("%") else filter_clause.object_to_compare
+                filter_expression = field_to_filter_by.like(filter_clause.object_to_compare)
 
-            # Lista final de expresiones que se añadirán al operador al final
-            inner_expression_list = []
+            return filter_expression
 
+        def __inner_resolve_filter_clauses(inner_filter_clauses: List[FilterClause], field_info_dict_inner: dict):
+            """
+            Resuelve la cláusula de filtrado.
+            :param inner_filter_clauses:
+            :param field_info_dict_inner:
+            :return: list
+            """
+            # Este filtro: f1 and f2 or (f3 or f4). La forma de expresarlo en SQLAlchemy sería:
+            # or_(and_(f1, f2), or_(f3, f4).self_group()). Supongamos que fx es ya una expresión ya resuelta de filtros,
+            # como == o like. Hay que ir anidando los filtros en el momento en que cambia el operador, teniendo en
+            # cuenta que si hay paréntesis ese filtro no envuelve a los otros sino que va por su cuenta con la función
+            # "self_group".
+
+            # Para automatizar esto, tengo que recorrer la lista de filtros, y en el momento en que el siguiente
+            # elemento cambie de operador, envolver los filtros hasta ese momento en un and_ o un or_, y dejarlo listo
+            # para añadirlo en el siguiente filtro tratado (siempre antes de éste). Si el filtro tiene una lista de
+            # filtros asociada significa que van juntos dentro de un paréntesis, con lo cual la función deberá
+            # llamarse de forma recursiva para resolver estos casos e ir añadiendo el resultado al filtro global.
             filter_expression: any
             field_info: any
             field_type: type
             field_to_filter_by: any
+            has_related_filters: bool
 
-            # Lo normal es que sea un sólo filtro, pero con esto puedo controlar la posibilidad de que haya varios
-            # filtros relacionados dentro de un paréntesis.
-            for f in inner_filter_list:
+            aux_filter_list: list = []
+            # Inicializo el operador a None: la clave del proceso es comprobar los cambios de operador entre filtros
+            f_operator: Union[expression, None] = None
+
+            # Lista global de filtros computados y concatenados por los correspondientes operadores
+            global_filter_content: Union[list, expression] = []
+
+            for idx, f in enumerate(inner_filter_clauses):
+                # Si el operador es None, significa que el elemento actual tiene un operador diferente que el anterior y
+                # por tanto hay que encadenar el filtro al actual.
+                if f_operator is None:
+                    f_operator = or_ if f.operator_type == EnumOperatorTypes.OR else and_
+
                 # Recupero la información del campo del diccionario
                 field_info = field_info_dict_inner[f.field_name]
-
                 # Información del campo
                 field_type = field_info.field_type
                 field_to_filter_by = field_info.field_to_work_with
 
                 # Expresión a añadir
-                filter_expression = None
+                filter_expression = __resolve_filter_expression(filter_clause=f, field_to_filter_by=field_to_filter_by)
 
-                # Voy comprobando el tipo de filtro y construyendo la expresión de forma adecuada según los criterios de
-                # SQLAlchemy
-                if f.filter_type == EnumFilterTypes.EQUALS:
-                    filter_expression = field_to_filter_by == f.object_to_compare
-                elif f.filter_type == EnumFilterTypes.NOT_EQUALS:
-                    filter_expression = field_to_filter_by != f.object_to_compare
-                elif f.filter_type == EnumFilterTypes.GREATER_THAN:
-                    filter_expression = field_to_filter_by > f.object_to_compare
-                elif f.filter_type == EnumFilterTypes.LESS_THAN:
-                    filter_expression = field_to_filter_by < f.object_to_compare
-                elif f.filter_type == EnumFilterTypes.GREATER_THAN_OR_EQUALS:
-                    filter_expression = field_to_filter_by >= f.object_to_compare
-                elif f.filter_type == EnumFilterTypes.LESS_THAN_OR_EQUALS:
-                    filter_expression = field_to_filter_by <= f.object_to_compare
-                elif f.filter_type == EnumFilterTypes.LIKE or f.filter_type == EnumFilterTypes.NOT_LIKE:
-                    # Si no incluye porcentaje, le añado yo uno al principio y al final
-                    f.object_to_compare = f'%{f.object_to_compare}%' if "%" not in f.object_to_compare \
-                        else f.object_to_compare
-                    filter_expression = field_to_filter_by.like(
-                        f.object_to_compare) if f.filter_type == EnumFilterTypes.LIKE \
-                        else field_to_filter_by.not_like(f.object_to_compare)
-                elif f.filter_type == EnumFilterTypes.IN:
-                    filter_expression = field_to_filter_by.in_(f.object_to_compare)
-                elif f.filter_type == EnumFilterTypes.NOT_IN:
-                    filter_expression = ~field_to_filter_by.in_(f.object_to_compare)
-                elif f.filter_type == EnumFilterTypes.STARTS_WITH:
-                    f.object_to_compare = f'{f.object_to_compare}%' if not f.object_to_compare.endswith("%") \
-                        else f.object_to_compare
-                    filter_expression = field_to_filter_by.like(f.object_to_compare)
-                elif f.filter_type == EnumFilterTypes.ENDS_WITH:
-                    f.object_to_compare = f'%{f.object_to_compare}' if not f.object_to_compare.startswith("%") \
-                        else f.object_to_compare
-                    filter_expression = field_to_filter_by.like(f.object_to_compare)
+                # Añadirla a la lista auxiliar que va reiniciándose con cada cambio de operador entre filtros
+                aux_filter_list.append(filter_expression)
 
-                # Voy añadiendo el contenido del filtro a la lista final de expresiones
-                inner_expression_list.append(filter_expression)
+                # Comprobar si tiene filtros anidados: si los tiene, llamar de forma recursiva a esta función para
+                # resolverlos (incluyendo si esos filtros anidados tienen a su vez otros filtros anidados)
+                has_related_filters = True if f.related_filter_clauses else False
+                if has_related_filters:
+                    aux_filter_list.append(__inner_resolve_filter_clauses(f.related_filter_clauses,
+                                                                          field_info_dict_inner))
 
-            # Si tiene filtros asociados, hay que utilizar al final self_group para que los relacione dentro de un
-            # mismo paréntesis
-            filter_content.append(f_operator(*inner_expression_list).self_group()) if has_related_filters \
-                else filter_content.append(f_operator(*inner_expression_list))
+                # Comprobar el operador del siguiente elemento del listado para ver si ha cambiado: si cambia, hay que
+                # agrupar el filtro en el filtro global
+                if idx < len(filter_clauses) - 1 and filter_clauses[idx + 1].operator_type != f.operator_type \
+                        or idx == len(filter_clauses) - 1:
+                    # Primero añado a la lista global de filtros los filtros computados hasta ahora que compartan el
+                    # mismo operador.
+                    if has_related_filters:
+                        # Si tiene filtros anidados significa que van juntos dentro de un paréntesis, por lo tanto
+                        # hay que añadir self_group a la expresión
+                        global_filter_content = f_operator(*global_filter_content, *aux_filter_list).self_group()
+                    else:
+                        # global_filter_content es de entrada una lista pero si hay más de un filtro y ha cambiado al
+                        # menos una vez de operador se convierte en una expresión. Si aún es una lista significa que
+                        # hasta ese momento no había cambiado de operador
+                        if isinstance(global_filter_content, list) and len(global_filter_content) == 0:
+                            global_filter_content.append(f_operator(*aux_filter_list))
+                        else:
+                            # Si ya hay expresiones y ha cambiado el operador, global_filter_content deja de ser una
+                            # lista y se convierte en una expresión
+                            global_filter_content = f_operator(*global_filter_content, *aux_filter_list)
+
+                    # Reinicio del operador para la siguiente iteración
+                    f_operator = None
+                    aux_filter_list = []
+
+            return global_filter_content
 
         # Calculo los valores de los campos para reutilizarlos en la función interna de resolución y así optimizar
         # el proceso. Hay que considerar también los posibles filtros internos
@@ -418,25 +460,12 @@ class BaseDao(object, metaclass=abc.ABCMeta):
         # Obtengo la información del campo
         field_info_dict = self.__resolve_fields_info(aliases_dict=alias_dict, clauses=all_filter_clauses)
 
-        # Este filtro: f1 and f2 or (f3 or f4). La forma de expresarlo en SQLAlchemy sería:
-        # or_(and_(f1, f2), or_(f3, f4).self_group()). Supongamos que fx es ya una expresión ya resuelta de filtros,
-        # como == o like. Hay que ir anidando los filtros en el momento en que cambia el operador, teniendo en cuenta
-        # que si hay paréntesis ese filtro no envuelve a los otros sino que va por su cuenta con la función
-        # "self_group".
-
-        # Para automatizar esto, tengo que recorrer la lista de filtros, y en el momento en que el siguiente elemento
-        # cambie de operador, envolver los filtros hasta ese momento en un and_ o un or_, y dejarlo listo para añadirlo
-        # en el siguiente filtro tratado (siempre antes de éste). Si el filtro tiene una lista de filtros asociada
-        # significa que van juntos dentro de un paréntesis, con lo cual la función deberá llamarse de forma recursiva
-        # para resolver estos casos e ir añadiendo el resultado al filtro global.
-
         # Hago el proceso para cada filtro del listado, para controlar los filtros anidados en otros (relacionados
         # entre por paréntesis)
-        for filter_q in filter_clauses:
-            __inner_resolve_filter_clauses(filter_q, field_info_dict)
+        filter_content = __inner_resolve_filter_clauses(filter_clauses, field_info_dict)
 
         # Añado el contenido final del filtro a la cláusula where del statement
-        return stmt.where(*filter_content)
+        return stmt.where(filter_content)
 
     @staticmethod
     def __resolve_join_clause(join_clauses: List[JoinClause], stmt, alias_dict: Dict[str, _SQLModelHelper]):
@@ -638,6 +667,9 @@ class BaseDao(object, metaclass=abc.ABCMeta):
         field_info_dict: dict = {}
 
         for clause in clauses:
+            if clause.field_name in field_info_dict:
+                continue
+
             clause_split = clause.field_name.split(".")
             # Obtengo la entidad relacionada descartanto el último elemento; se va a corresponder con la clave
             # del diccionario de alias
