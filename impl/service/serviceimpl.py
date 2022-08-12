@@ -68,7 +68,8 @@ class TipoClienteServiceImpl(BaseService):
     def test_select_fields(self):
         field_clauses: List[FieldClause] = [FieldClause("id", EnumAggregateFunctions.COUNT)]
         result = self._dao.select_fields(field_clauses=field_clauses)
-        print(result)
+        for r in result:
+            print(r)
 
 
 class UsuarioServiceImpl(BaseService):
