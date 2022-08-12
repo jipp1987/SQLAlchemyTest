@@ -167,7 +167,6 @@ class BaseDao(object, metaclass=abc.ABCMeta):
         return id_field_name
 
     # MÉTODOS DE ACCESO A DATOS
-
     def create(self, registry: BaseEntity) -> None:
         """
         Crea una entidad en la base de datos.
@@ -193,6 +192,29 @@ class BaseDao(object, metaclass=abc.ABCMeta):
         # Consultar el último registro para recuperar su id
         setattr(registry, id_field_name, id_field)
 
+    def update(self, registry: BaseEntity) -> None:
+        """
+        Modifica una entidad en la base de datos.
+        :param registry:
+        :return: None
+        """
+        my_session = type(self).get_session_for_current_thread()
+
+        # Busco el elemento en la base de datos
+        id_field_name = self.get_entity_id_field_name()
+        registry_in_db = self.find_by_id(getattr(registry, id_field_name))
+
+        # Recorro la lista de atributos del objeto y se los cambio por el enviado como parámetro
+        # Recupero el tipo de campo para tratar ciertos filtros especiales, como las fechas
+        mapper = inspect(type(registry))
+        for key in mapper.columns:
+            setattr(registry_in_db, key.name, getattr(registry, key.name))
+
+        # Importante hacer flush para que se refleje el cambio en la propia transacción (sin llegar a hacer commit
+        # en la db)
+        my_session.flush()
+        my_session.expunge_all()
+
     def find_last_entity(self) -> BaseEntity:
         """
         Devuelve el último registro introducido en la tabla principal del DAO.
@@ -207,19 +229,21 @@ class BaseDao(object, metaclass=abc.ABCMeta):
 
         return my_session.query(self.entity_type).order_by(id_field.desc()).first()
 
-    def delete_by_id(self, registry_id: any):
+    def delete(self, registry: BaseEntity):
         """
         Elimina un registro por id.
-        :param registry_id: Id del registro.
+        :param registry: Registro a eliminar.
         :return: None.
         """
         my_session = type(self).get_session_for_current_thread()
 
         # Buscar método para obtener el id
         id_field_name: str = self.get_entity_id_field_name()
-        id_field = getattr(self.entity_type, id_field_name)
+        id_field_value = getattr(registry, id_field_name)
+        id_field = getattr(type(registry), id_field_name)
 
-        my_session.query(self.entity_type).filter(id_field == registry_id).delete()
+        my_session.query(self.entity_type).filter(id_field == id_field_value).delete()
+        my_session.flush()
 
     def find_by_id(self, registry_id: any):
         """

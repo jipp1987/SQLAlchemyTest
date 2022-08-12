@@ -77,7 +77,8 @@ def query_2():
 
 def query_3():
     service = ServiceFactory.get_service(ClienteServiceImpl)
-    service.test_join()
+    # service.test_join()
+    service.test()
 
 
 def query_4():
@@ -92,7 +93,6 @@ if __name__ == '__main__':
     BaseDao.set_db_config_values(**d)
 
     try:
-        r = query_4()
-        print(r)
+        query_3()
     except Exception as e:
         print(e, file=sys.stderr)

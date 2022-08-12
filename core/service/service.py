@@ -107,13 +107,22 @@ class BaseService(object, metaclass=ErrorHandler):
         self._dao.create(registry)
 
     @service_method
-    def delete_by_id(self, registry_id: any) -> None:
+    def update(self, registry: BaseEntity) -> None:
         """
-        Elimina un registro por id.
-        :param registry_id: Id del registro a eliminar.
+        Crea una entidad en la base de datos y sincroniza su id.
+        :param registry: Registro a crear.
         :return: None
         """
-        self._dao.delete_by_id(registry_id)
+        self._dao.update(registry)
+
+    @service_method
+    def delete(self, registry: BaseEntity) -> None:
+        """
+        Elimina un registro por id.
+        :param registry: Registro a eliminar.
+        :return: None
+        """
+        self._dao.delete(registry)
 
     @service_method
     def find_by_id(self, registry_id: any):

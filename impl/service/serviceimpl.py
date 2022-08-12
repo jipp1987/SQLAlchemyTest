@@ -26,7 +26,7 @@ class ClienteServiceImpl(BaseService):
             print(x)
         print("\n")
 
-        tipo_cliente = TipoCliente(codigo="7898", descripcion="Prueba 5558")
+        tipo_cliente = TipoCliente(codigo="7869", descripcion="Prueba 5558")
         tipo_cliente_service.create(tipo_cliente)
 
         print("\n")
@@ -39,7 +39,7 @@ class ClienteServiceImpl(BaseService):
 
         print(f"\nNuevo tipo de cliente ---> {tipo_cliente_2}\n")
 
-        tipo_cliente_3 = TipoCliente(codigo="2500", descripcion="Prueba 2500")
+        tipo_cliente_3 = TipoCliente(codigo="2503", descripcion="Prueba 2500")
         tipo_cliente_service.create(tipo_cliente_3)
         tipo_cliente_4 = tipo_cliente_service.find_by_id(tipo_cliente_3.id)
 
@@ -55,7 +55,15 @@ class ClienteServiceImpl(BaseService):
         for x in result:
             print(x.tipo_cliente)
 
-        tipo_cliente_service.delete_by_id(tipo_cliente_4.id)
+        tipo_cliente_4.descripcion = "Prueba update"
+        tipo_cliente_service.update(tipo_cliente_4)
+
+        tipo_cliente_5 = tipo_cliente_service.find_by_id(tipo_cliente_4.id)
+        print(tipo_cliente_5)
+
+        tipo_cliente_service.delete(tipo_cliente)
+        tipo_cliente_service.delete(tipo_cliente_3)
+        tipo_cliente_service.delete(tipo_cliente_5)
 
     @service_method
     def test_select_fields(self):
