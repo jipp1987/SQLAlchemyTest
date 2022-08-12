@@ -1,8 +1,7 @@
 import enum
 from collections import namedtuple
 from dataclasses import dataclass
-from typing import List
-
+from typing import List, Union
 
 _SQLEngineTypes = namedtuple('SQLEngineTypes', ['value', 'engine_name'])
 """Tupla para propiedades de EnumSQLEngineTypes. La uso para poder añadirle una propiedad al enumerado, aparte del 
@@ -126,13 +125,15 @@ class EnumAggregateFunctions(enum.Enum):
     COUNT = AggregateFunction(1, 'COUNT')
     MIN = AggregateFunction(2, 'MIN')
     MAX = AggregateFunction(3, 'MAX')
+    SUM = AggregateFunction(4, 'SUM')
+    AVG = AggregateFunction(5, 'AVG')
 
 
 class FilterClause(object):
     """Clase para modelado de cláusulas WHERE."""
 
-    def __init__(self, field_name: str, filter_type: (EnumFilterTypes, str), object_to_compare: any,
-                 operator_type: (EnumOperatorTypes, str) = None, related_filter_clauses: list = None):
+    def __init__(self, field_name: str, filter_type: Union[EnumFilterTypes, str], object_to_compare: any,
+                 operator_type: Union[EnumOperatorTypes, str] = None, related_filter_clauses: list = None):
         self.field_name = field_name
         """Nombre del campo de la relación, respetando el nivel de anidamiento contando desde la entidad principal sin 
         incluirla, por ejemplo si para el dao de Clientes: tipo_cliente.usuario_creacion sería un join desde Clientes a 
@@ -152,7 +153,7 @@ class FilterClause(object):
 class JoinClause(object):
     """Clase para modelado de cláusulas JOIN."""
 
-    def __init__(self, field_name: str, join_type: (EnumJoinTypes, str), is_join_with_fetch: bool = False):
+    def __init__(self, field_name: str, join_type: Union[EnumJoinTypes, str], is_join_with_fetch: bool = False):
         self.field_name = field_name
         """Nombre del campo de la relación entre entidades sobre la que se quiere hacer join."""
         self.join_type = join_type if isinstance(join_type, EnumJoinTypes) else EnumJoinTypes[join_type]
@@ -172,9 +173,21 @@ class GroupByClause(object):
 class OrderByClause(object):
     """Clase para modelado de cláusulas ORDER BY."""
 
-    def __init__(self, field_name: str, order_by_type: (EnumOrderByTypes, str)):
+    def __init__(self, field_name: str, order_by_type: Union[EnumOrderByTypes, str]):
         self.field_name = field_name
         """Nombre del campo."""
         self.order_by_type = order_by_type if isinstance(order_by_type, EnumOrderByTypes) \
             else EnumOrderByTypes[order_by_type]
         """Tipo de cláusula ORDER BY."""
+
+
+class FieldClause(object):
+    """Clase para modelado de selección de campos individuales."""
+
+    def __init__(self, field_name: str, aggregate_function: Union[EnumAggregateFunctions, str] = None):
+        self.field_name = field_name
+        """Nombre del campo."""
+        self.aggregate_function = None if aggregate_function is None else \
+            (aggregate_function if isinstance(aggregate_function, EnumAggregateFunctions)
+             else EnumOrderByTypes[aggregate_function])
+        """Función de agregado."""

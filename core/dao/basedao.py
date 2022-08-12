@@ -4,13 +4,14 @@ import threading
 from copy import deepcopy
 from typing import Dict, List, Union
 
-from sqlalchemy import create_engine, select, and_, or_, inspect
+from sqlalchemy import create_engine, select, and_, or_, inspect, func
 from sqlalchemy.engine import Engine
 from sqlalchemy.orm import sessionmaker, declarative_base, contains_eager, aliased
 from sqlalchemy.sql import expression
 
 from core.dao.daotools import FilterClause, EnumFilterTypes, EnumOperatorTypes, JoinClause, EnumJoinTypes, \
-    OrderByClause, GroupByClause, EnumOrderByTypes, EnumSQLEngineTypes, _SQLModelHelper
+    OrderByClause, GroupByClause, EnumOrderByTypes, EnumSQLEngineTypes, _SQLModelHelper, FieldClause, \
+    EnumAggregateFunctions
 
 BaseEntity = declarative_base()
 """Declaración de clase para mapeo de todas la entidades de la base de datos."""
@@ -246,9 +247,28 @@ class BaseDao(object, metaclass=abc.ABCMeta):
         return self.__select(filter_clauses=filter_clauses, join_clauses=join_clauses,
                              order_by_clauses=order_by_clauses)
 
+    def select_fields(self, field_clauses: List[FieldClause], filter_clauses: List[FilterClause] = None,
+                      join_clauses: List[JoinClause] = None, order_by_clauses: List[OrderByClause] = None,
+                      group_by_clauses: List[GroupByClause] = None) \
+            -> List[dict]:
+        """
+        Selecciona campos individuales. Los fetch de los joins serán ignorados, sólo se devuelven los campos indicados
+        en los field_clauses.
+        :param field_clauses: Listado de campos a seleccionar.
+        :param filter_clauses: Filtros.
+        :param join_clauses: Joins.
+        :param order_by_clauses: Order Bys.
+        :param group_by_clauses: Group Bys.
+        :return: Lista de diccionarios.
+        """
+        return self.__select(filter_clauses=filter_clauses, join_clauses=join_clauses,
+                             order_by_clauses=order_by_clauses, field_clauses=field_clauses,
+                             group_by_clauses=group_by_clauses)
+
     def __select(self, filter_clauses: List[FilterClause] = None, join_clauses: List[JoinClause] = None,
-                 order_by_clauses: List[OrderByClause] = None) \
-            -> List[BaseEntity]:
+                 order_by_clauses: List[OrderByClause] = None, group_by_clauses: List[GroupByClause] = None,
+                 field_clauses: List[FieldClause] = None) \
+            -> Union[List[BaseEntity], List[dict]]:
         """
         Hace una consulta a la base de datos.
         """
@@ -266,30 +286,74 @@ class BaseDao(object, metaclass=abc.ABCMeta):
             # para respetar un orden lógico de joins y evitar resultados duplicados y equívocos en la consulta.
             join_clauses = self.__resolve_field_aliases(join_clauses=join_clauses, alias_dict=aliases_dict)
 
-        # Expresión de la consulta
-        stmt = select(self.entity_type)
+        # Si hay field_clauses, es una consulta de campos individuales
+        is_select_with_fields: bool = False
+        if field_clauses:
+            fields_to_select = self.__resolve_field_clauses(field_clauses=field_clauses, alias_dict=aliases_dict)
+            is_select_with_fields = True
+            stmt = select(*fields_to_select)
+        else:
+            # Expresión de la consulta: si no hay field_clauses, es una consulta de carga total de la entidad;
+            # si los hay es una consulta de campos individuales.
+            stmt = select(self.entity_type)
 
         # Resolver cláusula join
         if join_clauses:
-            stmt = self.__resolve_join_clause(join_clauses=join_clauses, stmt=stmt, alias_dict=aliases_dict)
+            stmt = self.__resolve_join_clause(join_clauses=join_clauses, stmt=stmt, alias_dict=aliases_dict,
+                                              is_select_with_fields=is_select_with_fields)
 
         # Resolver cláusula where
         if filter_clauses:
             stmt = self.__resolve_filter_clauses(filter_clauses=filter_clauses, stmt=stmt, alias_dict=aliases_dict)
+
+        # Resolver cláusula group by
+        if group_by_clauses:
+            stmt = self.__resolve_group_by_clauses(group_by_clauses=group_by_clauses, stmt=stmt,
+                                                   alias_dict=aliases_dict)
 
         # Resolver cláusula order by
         if order_by_clauses:
             stmt = self.__resolve_order_by_clauses(order_by_clauses=order_by_clauses, stmt=stmt,
                                                    alias_dict=aliases_dict)
 
-        # Ejecutar la consulta
-        result = my_session.execute(stmt).scalars().all()
+        # Ejecutar la consulta: si es una consulta de campos, devolver una lista de diccionarios; si es una consulta
+        # total, devolver una lista de objetos BaseEntity, la que corresponda al dao.
+        if is_select_with_fields:
+            # Esto me trae una lista de objetos row de SQLAlchemy; obtengo su diccionario y lo añado al resultado.
+            row_result = my_session.execute(stmt).all()
+            # result = [r.__dict__ for r in row_result]
+            result = row_result
+        else:
+            result = my_session.execute(stmt).scalars().all()
 
         # Para evitar problemas, hago flush y libero todos los elementos
         my_session.flush()
         my_session.expunge_all()
 
         return result
+
+    def __resolve_group_by_clauses(self, group_by_clauses: List[GroupByClause], stmt,
+                                   alias_dict: Dict[str, _SQLModelHelper]):
+        """
+        Resuelve las cláusulas group by.
+        :param alias_dict: Diccionario de alias de campos.
+        :param group_by_clauses: Lista de cláusulas group by.
+        :param stmt: Statement de SQLAlchemy.
+        :return: Statement de SQLAlchemy con los order by añadidos.
+        """
+        # Obtengo la información de los campos
+        field_info_dict = self.__resolve_fields_info(aliases_dict=alias_dict, clauses=group_by_clauses)
+
+        for o in group_by_clauses:
+            # Recupero la información del campo del diccionario
+            field_info = field_info_dict[o.field_name]
+
+            # Información del campo
+            field_to_group_by = field_info.field_to_work_with
+
+            stmt = stmt.group_by(field_to_group_by)
+
+        return stmt
 
     def __resolve_order_by_clauses(self, order_by_clauses: List[OrderByClause], stmt,
                                    alias_dict: Dict[str, _SQLModelHelper]):
@@ -317,6 +381,43 @@ class BaseDao(object, metaclass=abc.ABCMeta):
                 stmt = stmt.order_by(field_to_order_by.asc())
 
         return stmt
+
+    def __resolve_field_clauses(self, field_clauses: List[FieldClause], alias_dict: Dict[str, _SQLModelHelper]) \
+            -> list:
+        """
+        Resuelve las cláusulas order by.
+        :param alias_dict: Diccionario de alias de campos.
+        :param field_clauses: Lista de campos a seleccionar.
+        :return: List[expression]
+        """
+        # Obtengo la información de los campos
+        field_info_dict = self.__resolve_fields_info(aliases_dict=alias_dict, clauses=field_clauses)
+
+        fields_to_select: list = []
+
+        for f in field_clauses:
+            # Recupero la información del campo del diccionario
+            field_info = field_info_dict[f.field_name]
+
+            # Información del campo
+            field_to_select = field_info.field_to_work_with
+
+            # Comprobar si hay función de agregado
+            if f.aggregate_function is not None:
+                if f.aggregate_function == EnumAggregateFunctions.COUNT:
+                    fields_to_select.append(func.count(field_to_select))
+                elif f.aggregate_function == EnumAggregateFunctions.MAX:
+                    fields_to_select.append(func.max(field_to_select))
+                elif f.aggregate_function == EnumAggregateFunctions.MIN:
+                    fields_to_select.append(func.min(field_to_select))
+                elif f.aggregate_function == EnumAggregateFunctions.SUM:
+                    fields_to_select.append(func.sum(field_to_select))
+                elif f.aggregate_function == EnumAggregateFunctions.AVG:
+                    fields_to_select.append(func.avg(field_to_select))
+            else:
+                fields_to_select.append(field_to_select)
+
+        return fields_to_select
 
     def __resolve_filter_clauses(self, filter_clauses: List[FilterClause], stmt,
                                  alias_dict: Dict[str, _SQLModelHelper]):
@@ -485,11 +586,14 @@ class BaseDao(object, metaclass=abc.ABCMeta):
         return stmt.where(filter_content)
 
     @staticmethod
-    def __resolve_join_clause(join_clauses: List[JoinClause], stmt, alias_dict: Dict[str, _SQLModelHelper]):
+    def __resolve_join_clause(join_clauses: List[JoinClause], stmt, alias_dict: Dict[str, _SQLModelHelper],
+                              is_select_with_fields: bool = False):
         """
         Resuelve la cláusula join.
         :param join_clauses: Lista de cláusulas join.
         :param alias_dict: Diccionario de alias.
+        :param is_select_with_fields: Si True, significa que es una selección de campos individuales y por tanto se
+        ignorará la opción "fetch" (traer toda la entidad y cargarla sobre la relación del modelo) de los joins.
         :returns: Statement SQL con los joins añadidos.
         """
         join_options_final: list = []
@@ -535,7 +639,7 @@ class BaseDao(object, metaclass=abc.ABCMeta):
             stmt = stmt.join(join_options[-1], isouter=is_outer)
 
             # Si tiene fetch, añadir una opción para traerte todos los campos para rellenar el objeto relation_ship.
-            if j.is_join_with_fetch:
+            if j.is_join_with_fetch and not is_select_with_fields:
                 # Para aquéllas entidades anidadas en otras, aquí hay que cargar toda la miga de pan para que el motor
                 # sepa resolver la relación entre objetos.
                 join_options_final.append(contains_eager(*join_options))
@@ -655,6 +759,7 @@ class BaseDao(object, metaclass=abc.ABCMeta):
     def __resolve_fields_info(self, aliases_dict: Dict[str, _SQLModelHelper],
                               clauses: Union[List[FilterClause],
                                              List[OrderByClause],
+                                             List[FieldClause],
                                              List[GroupByClause]]) -> dict:
         """
         Resuelve la información de los campos para las cláusulas de filter, group by, order by y campos individuales.

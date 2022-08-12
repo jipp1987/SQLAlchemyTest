@@ -80,12 +80,17 @@ def query_3():
     service.test_join()
 
 
+def query_4():
+    service = ServiceFactory.get_service(TipoClienteServiceImpl)
+    service.test_select_fields()
+
+
 if __name__ == '__main__':
     # Configurar Dao desde fichero ini
     d = read_section_in_ini_file(file_name="db", section="MyDataBase")
     BaseDao.set_db_config_values(**d)
 
     try:
-        query_1()
+        query_4()
     except Exception as e:
         print(e, file=sys.stderr)
