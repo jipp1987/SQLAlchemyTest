@@ -232,9 +232,22 @@ class BaseDao(object, metaclass=abc.ABCMeta):
         return result
 
     # SELECT
-
     def select(self, filter_clauses: List[FilterClause] = None, join_clauses: List[JoinClause] = None,
                order_by_clauses: List[OrderByClause] = None) \
+            -> List[BaseEntity]:
+        """
+        Selecciona entidades cargadas con todos sus campos. Si se incluyem joins con fetch, traerá cargadas también
+        las entidades anidadas referenciadas en los joins.
+        :param filter_clauses:
+        :param join_clauses:
+        :param order_by_clauses:
+        :return: List[BaseEntity]
+        """
+        return self.__select(filter_clauses=filter_clauses, join_clauses=join_clauses,
+                             order_by_clauses=order_by_clauses)
+
+    def __select(self, filter_clauses: List[FilterClause] = None, join_clauses: List[JoinClause] = None,
+                 order_by_clauses: List[OrderByClause] = None) \
             -> List[BaseEntity]:
         """
         Hace una consulta a la base de datos.
@@ -675,11 +688,11 @@ class BaseDao(object, metaclass=abc.ABCMeta):
                 continue
 
             clause_split = clause.field_name.split(".")
-            # Obtengo la entidad relacionada descartanto el último elemento; se va a corresponder con la clave
+            # Obtengo la entidad relacionada descartando el último elemento; se va a corresponder con la clave
             # del diccionario de alias
             entity_breadcrumb = ".".join(clause_split[:-1]) if len(clause_split) > 1 else None
 
-            # El campo por el que filtrar será siempre el último del split
+            # El campo objetivo de la cláusula será siempre el último del split
             field_to_work_with = clause_split[-1]
 
             # En función de si es una entidad anidada, preparo los campos
@@ -691,11 +704,20 @@ class BaseDao(object, metaclass=abc.ABCMeta):
             else:
                 # Si existe miga de pan, es un filtro por algún campo anidado respecto a la entidad base; recupero
                 # la información desde el diccionario de alias.
+                if entity_breadcrumb not in aliases_dict:
+                    raise ValueError(f"Unknown column {entity_breadcrumb} in clause {clause.field_name}")
+
                 clause_entity = aliases_dict[entity_breadcrumb].model_type
                 field_alias = aliases_dict[entity_breadcrumb].model_alias
 
             # Recupero el tipo de campo para tratar ciertos filtros especiales, como las fechas
             mapper = inspect(clause_entity)
+
+            # Comprobar que existe el campo, si no existe lanzar excepción
+            if field_to_work_with not in mapper.columns:
+                raise AttributeError(f"There was not field {field_to_work_with} "
+                                     f"in class {clause_entity.__name__}")
+
             field_type = mapper.columns[field_to_work_with].type
 
             # Obtengo el propio campo para filtrar

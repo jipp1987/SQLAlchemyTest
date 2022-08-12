@@ -14,7 +14,8 @@ def query_1():
 
     filter_1 = FilterClause(field_name="codigo", filter_type=EnumFilterTypes.LIKE, object_to_compare="0")
 
-    filter_6 = FilterClause(field_name="descripcion", filter_type=EnumFilterTypes.LIKE, object_to_compare="a")
+    filter_6 = FilterClause(field_name="usuario_creacion.username", filter_type=EnumFilterTypes.LIKE,
+                            object_to_compare="a")
 
     filter_2 = FilterClause(field_name="descripcion", filter_type=EnumFilterTypes.LIKE, object_to_compare="iv",
                             operator_type=EnumOperatorTypes.OR)
@@ -29,7 +30,10 @@ def query_1():
 
     filters: List[FilterClause] = [filter_1, filter_6, filter_2]
 
-    result = service.select(filter_clauses=filters)
+    joins: List[JoinClause] = [JoinClause(field_name="usuario_creacion", join_type=EnumJoinTypes.LEFT_JOIN,
+                                          is_join_with_fetch=False)]
+
+    result = service.select(filter_clauses=filters, join_clauses=joins)
 
     for r in result:
         print(r)
