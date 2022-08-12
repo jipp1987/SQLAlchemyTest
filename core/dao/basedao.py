@@ -323,12 +323,14 @@ class BaseDao(object, metaclass=abc.ABCMeta):
                 for related_filter in filter_clause.related_filter_clauses:
                     __append_all_filters(related_filter, filter_list)
 
-        def __resolve_filter_expression(filter_clause: FilterClause, field_to_filter_by: any):
+        def __resolve_filter_expression(filter_clause: FilterClause, field_to_filter_by: any, field_type: any) \
+                -> expression:
             """
             Resuelve la expresión del filter clause.
-            :param filter_clause:
-            :param field_to_filter_by:
-            :return: filter_expression
+            :param filter_clause: Claúsula de filtrado.
+            :param field_to_filter_by: Campo de la entidad de referencia para crear la expresión.
+            :param field_type: Tipo de campo objetivo del filtro en la entidad de referencia
+            :return: expression
             """
             filter_expression: any = None
 
@@ -346,7 +348,8 @@ class BaseDao(object, metaclass=abc.ABCMeta):
                 filter_expression = field_to_filter_by >= filter_clause.object_to_compare
             elif filter_clause.filter_type == EnumFilterTypes.LESS_THAN_OR_EQUALS:
                 filter_expression = field_to_filter_by <= filter_clause.object_to_compare
-            elif filter_clause.filter_type == EnumFilterTypes.LIKE or filter_clause.filter_type == EnumFilterTypes.NOT_LIKE:
+            elif filter_clause.filter_type == EnumFilterTypes.LIKE or \
+                    filter_clause.filter_type == EnumFilterTypes.NOT_LIKE:
                 # Si no incluye porcentaje, le añado yo uno al principio y al final
                 filter_clause.object_to_compare = f'%{filter_clause.object_to_compare}%' if "%" not in filter_clause. \
                     object_to_compare else filter_clause.object_to_compare
@@ -417,7 +420,8 @@ class BaseDao(object, metaclass=abc.ABCMeta):
                 field_to_filter_by = field_info.field_to_work_with
 
                 # Expresión a añadir
-                filter_expression = __resolve_filter_expression(filter_clause=f, field_to_filter_by=field_to_filter_by)
+                filter_expression = __resolve_filter_expression(filter_clause=f, field_to_filter_by=field_to_filter_by,
+                                                                field_type=field_type)
 
                 # Comprobar si tiene filtros anidados: si los tiene, llamar de forma recursiva a esta función para
                 # resolverlos (incluyendo si esos filtros anidados tienen a su vez otros filtros anidados)
