@@ -81,7 +81,7 @@ def query_3():
 
 
 def query_4():
-    service = ServiceFactory.get_service(TipoClienteServiceImpl)
+    service = ServiceFactory.get_service(ClienteServiceImpl)
     service.test_select_fields()
 
 

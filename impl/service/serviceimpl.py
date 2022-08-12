@@ -1,6 +1,6 @@
 from typing import List
 
-from core.dao.daotools import JoinClause, EnumJoinTypes, FieldClause, EnumAggregateFunctions
+from core.dao.daotools import JoinClause, EnumJoinTypes, FieldClause, EnumAggregateFunctions, GroupByClause
 from core.service.service import BaseService, service_method, ServiceFactory
 from impl.dao.daoimpl import ClienteDaoImpl, TipoClienteDaoImpl, UsuarioDaoImpl
 from impl.model.tipocliente import TipoCliente
@@ -57,19 +57,28 @@ class ClienteServiceImpl(BaseService):
 
         tipo_cliente_service.delete_by_id(tipo_cliente_4.id)
 
+    @service_method
+    def test_select_fields(self):
+        field_clauses: List[FieldClause] = [
+            FieldClause("tipo_cliente.codigo"),
+            FieldClause("id", EnumAggregateFunctions.COUNT)
+        ]
+
+        join_clauses: List[JoinClause] = [JoinClause("tipo_cliente", EnumJoinTypes.INNER_JOIN)]
+
+        group_by_clauses: List[GroupByClause] = [GroupByClause("tipo_cliente.codigo")]
+
+        result = self._dao.select_fields(field_clauses=field_clauses, join_clauses=join_clauses,
+                                         group_by_clauses=group_by_clauses)
+        for r in result:
+            print(r)
+
 
 class TipoClienteServiceImpl(BaseService):
     """Implementación del dao de clientes."""
 
     def __init__(self):
         super().__init__(dao=TipoClienteDaoImpl())
-
-    @service_method
-    def test_select_fields(self):
-        field_clauses: List[FieldClause] = [FieldClause("id", EnumAggregateFunctions.COUNT)]
-        result = self._dao.select_fields(field_clauses=field_clauses)
-        for r in result:
-            print(r)
 
 
 class UsuarioServiceImpl(BaseService):

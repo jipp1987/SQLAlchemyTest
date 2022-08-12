@@ -316,12 +316,10 @@ class BaseDao(object, metaclass=abc.ABCMeta):
             stmt = self.__resolve_order_by_clauses(order_by_clauses=order_by_clauses, stmt=stmt,
                                                    alias_dict=aliases_dict)
 
-        # Ejecutar la consulta: si es una consulta de campos, devolver una lista de objetos; si es una consulta
+        # Ejecutar la consulta: si es una consulta de campos, devolver una lista de tuplas; si es una consulta
         # total, devolver una lista de objetos BaseEntity, la que corresponda al dao.
         if is_select_with_fields:
-            # Esto me trae una lista de tuplas; obtengo sólo el primer elemento.
             result = my_session.execute(stmt).all()
-            result = [r[0] for r in result] if result else []
         else:
             result = my_session.execute(stmt).scalars().all()
 
