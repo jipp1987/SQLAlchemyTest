@@ -2,7 +2,7 @@ import types
 from typing import Callable, Dict, Type, List
 
 from core.dao.basedao import BaseDao, BaseEntity
-from core.dao.daotools import FilterClause, JoinClause, OrderByClause
+from core.dao.daotools import FilterClause, JoinClause, OrderByClause, FieldClause, EnumAggregateFunctions
 from core.exception.errorhandler import ErrorHandler
 
 
@@ -133,6 +133,29 @@ class BaseService(object, metaclass=ErrorHandler):
                order_by_clauses: List[OrderByClause] = None):
         return self._dao.select(filter_clauses=filter_clauses, join_clauses=join_clauses,
                                 order_by_clauses=order_by_clauses)
+
+    @service_method
+    def count_by_filtered_query(self, filter_clauses: List[FilterClause] = None, join_clauses: List[JoinClause] = None)\
+            -> int:
+        """
+        Cuenta el número de registros de una tabla, pudiendo añadir filtros opcionales.
+        :param filter_clauses: Filtros opcionales.
+        :param join_clauses: Joins opcionales relacionados con los filtros.
+        :return: int
+        """
+        field_clauses: List[FieldClause] = [FieldClause(self._dao.get_entity_id_field_name(),
+                                                        EnumAggregateFunctions.COUNT)]
+
+        result = self._dao.select_fields(field_clauses=field_clauses, filter_clauses=filter_clauses,
+                                         join_clauses=join_clauses)
+
+        # El resultado es una lista de tuplas: obtengo el primer valor del primer registro, que es donde está el
+        # el recuento de registros.
+        count: int = 0
+        if result and result[0]:
+            count = result[0][0]
+
+        return count
 
 
 class ServiceFactory(object):
