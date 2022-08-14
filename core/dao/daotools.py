@@ -1,37 +1,6 @@
 import enum
 from collections import namedtuple
-from dataclasses import dataclass
-from typing import List, Union
-
-_SQLEngineTypes = namedtuple('SQLEngineTypes', ['value', 'engine_name'])
-"""Tupla para propiedades de EnumSQLEngineTypes. La uso para poder añadirle una propiedad al enumerado, aparte del 
-propio valor."""
-
-
-class EnumSQLEngineTypes(enum.Enum):
-    """Enumerado de tipos de OrderBy."""
-
-    @property
-    def engine_name(self):
-        return self.value.engine_name
-
-    MYSQL = _SQLEngineTypes(1, 'mysql+pymysql')
-    POSTGRESQL = _SQLEngineTypes(2, 'postgresql')
-    SQL_SERVER = _SQLEngineTypes(3, 'pyodbc')
-    ORACLE = _SQLEngineTypes(4, 'oracle')
-    SQL_LITE = _SQLEngineTypes(5, 'sqlite')
-
-
-@dataclass(frozen=True)
-class _SQLModelHelper(object):
-    """Clase auxiliar para tener mejor identificados los distintos atributos relacionados con los alias de los
-    campos que deben utilizarse en la consulta."""
-    model_type: type
-    model_alias: any
-    model_field_value: any
-    model_owner_type: any
-    field_name: str
-    owner_breadcrumb: List[tuple]
+from typing import Union
 
 
 FilterType = namedtuple('FilterType', ['value', 'filter_keyword'])

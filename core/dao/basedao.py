@@ -1,7 +1,9 @@
 import abc
+import enum
 from collections import namedtuple
 import threading
 from copy import deepcopy
+from dataclasses import dataclass
 from typing import Dict, List, Union
 
 from sqlalchemy import create_engine, select, and_, or_, inspect, func
@@ -10,11 +12,41 @@ from sqlalchemy.orm import sessionmaker, declarative_base, contains_eager, alias
 from sqlalchemy.sql import expression
 
 from core.dao.daotools import FilterClause, EnumFilterTypes, EnumOperatorTypes, JoinClause, EnumJoinTypes, \
-    OrderByClause, GroupByClause, EnumOrderByTypes, EnumSQLEngineTypes, _SQLModelHelper, FieldClause, \
-    EnumAggregateFunctions
+    OrderByClause, GroupByClause, EnumOrderByTypes, FieldClause, EnumAggregateFunctions
 
 BaseEntity = declarative_base()
 """Declaración de clase para mapeo de todas la entidades de la base de datos."""
+
+
+_SQLEngineTypes = namedtuple('SQLEngineTypes', ['value', 'engine_name'])
+"""Tupla para propiedades de EnumSQLEngineTypes. La uso para poder añadirle una propiedad al enumerado, aparte del 
+propio valor."""
+
+
+class EnumSQLEngineTypes(enum.Enum):
+    """Enumerado de tipos de OrderBy."""
+
+    @property
+    def engine_name(self):
+        return self.value.engine_name
+
+    MYSQL = _SQLEngineTypes(1, 'mysql+pymysql')
+    POSTGRESQL = _SQLEngineTypes(2, 'postgresql')
+    SQL_SERVER = _SQLEngineTypes(3, 'pyodbc')
+    ORACLE = _SQLEngineTypes(4, 'oracle')
+    SQL_LITE = _SQLEngineTypes(5, 'sqlite')
+
+
+@dataclass(frozen=True)
+class _SQLModelHelper(object):
+    """Clase auxiliar para tener mejor identificados los distintos atributos relacionados con los alias de los
+    campos que deben utilizarse en la consulta."""
+    model_type: type
+    model_alias: any
+    model_field_value: any
+    model_owner_type: any
+    field_name: str
+    owner_breadcrumb: List[tuple]
 
 
 class BaseDao(object, metaclass=abc.ABCMeta):
@@ -707,8 +739,9 @@ class BaseDao(object, metaclass=abc.ABCMeta):
         """Nombre del campo a comprobar"""
         class_to_check: any
         """Clase a comprobar."""
-        previous_key: str
-        """Clave anterior para la construcción de la miga de pan."""
+        key_for_breadcrumb: str
+        """Clave para la construcción de la miga de pan para aquéllos joins cuyo campo está anidado en otro, 
+        por ejemplo tipo_cliente.usuario_creacion."""
         relationship_to_join_value: any
         """Atributo del campo de la relación asociada al join."""
         owner_breadcrumb: List[tuple]
@@ -722,8 +755,12 @@ class BaseDao(object, metaclass=abc.ABCMeta):
             rel_split = join_clause.field_name.split(".")
             join_sorted_list.append(join_sorted(join_split=rel_split, join_clause=join_clause))
 
-        # Ordenar la lista en función del número de elementos
-        join_sorted_list = sorted(join_sorted_list, key=lambda x: len(x.join_split), reverse=False)
+        # Ordenar la lista en función del número de elementos como primer criterio y por el nombre del campo como
+        # segundo criterio: los elementos con el mismo tamaño irán juntos, y al ordenarlos alfabéticamente irán juntos
+        # también los que tengan la misma entidad origen (por ejemplo, tipo_cliente.usuario_creacion y
+        # tipo_cliente.usuario_ult_mod)
+        join_sorted_list = sorted(join_sorted_list, key=lambda x: (len(x.join_split), x.join_clause.field_name),
+                                  reverse=False)
 
         # Es importante que los joins estén ordenados en la consulta final, aprovecho la lista auxiliar
         # ordenada para rehacer la lista original
@@ -738,33 +775,33 @@ class BaseDao(object, metaclass=abc.ABCMeta):
 
             # El campo a comprobar será siempre el último elemento del array split
             field_to_check = sorted_element.join_split[-1]
+            # En principio asumo que la clase origen será la principal, aunque si al separar el nombre del campo del
+            # join por el punto "." hay varios elementos, significa que es un join anidado en otro join.
             class_to_check = self.entity_type
-
-            # Primero intento recuperar el valor del mapa, para así obtener los datos del elemento inmediatamente
-            # anterior. La clave a recuperar no es la actual, sino la del elemento anterior, para lo cual tengo que
-            # acceder al penúltimo nivel del array
-            if len(sorted_element.join_split) > 1:
-                previous_key = ".".join(sorted_element.join_split[:-1])
-
-                if previous_key not in alias_dict:
-                    raise ValueError(f"Unknown column {previous_key}.")
-
-                class_to_check = alias_dict[previous_key].model_type
-
-            # Si no es el caso, asumimos que pertenece a la entidad principal del dao
-            relationship_to_join_value = getattr(class_to_check, field_to_check)
 
             # Esto lo necesito porque si es una entidad anidad sobre otra entidad anidada, necesito toda
             # la "miga de pan" para que el join funcione correctamente, si sólo especifico el último valor no entenderá
-            # de dónde viene la entidad.
+            # de dónde viene la entidad. Es decir, es aspecto que tiene la sentencia para SQLAlchemy es éste:
+            # contains_eager(Cliente.tipo_cliente, TipoCliente.usuario_ult_mod.of_type(alias_3)).
             owner_breadcrumb = []
+
+            # Primero intento recuperar el valor del mapa, para así obtener los datos del elemento inmediatamente
+            # anterior. La clave a recuperar no es la actual, sino la de algún elemento anterior, para lo cual tengo que
+            # acceder al penúltimo nivel del array. Como están ordenados por tamaño y alfabéticamente, el elemento
+            # origen siempre va a existir en el mapa en el momento de procesar un join anidado en otro campo.
             if len(sorted_element.join_split) > 1:
-                previous_key: str = ".".join(sorted_element.join_split[:-1])
+                key_for_breadcrumb = ".".join(sorted_element.join_split[:-1])
+                # La clase anidada ya habrá sido procesada anteriormente debido al orden de los elementos,
+                # con lo cual esto siempre encontrará el objeto.
+                class_to_check = alias_dict[key_for_breadcrumb].model_type
                 # Primero añado la lista que ya tuviera el propietario, a modo de miga de pan
-                owner_breadcrumb.extend(alias_dict[previous_key].owner_breadcrumb)
+                owner_breadcrumb.extend(alias_dict[key_for_breadcrumb].owner_breadcrumb)
                 # Luego añado la que le corresponde a sí mismo, que es la del registro anterior.
-                owner_breadcrumb.append((alias_dict[previous_key].model_field_value,
-                                         alias_dict[previous_key].model_alias))
+                owner_breadcrumb.append((alias_dict[key_for_breadcrumb].model_field_value,
+                                         alias_dict[key_for_breadcrumb].model_alias))
+
+            # Si no es el caso, asumimos que pertenece a la entidad principal del dao
+            relationship_to_join_value = getattr(class_to_check, field_to_check)
 
             # Busco el tipo de entidad para generar un alias. Utilizo el mapa de relaciones de la propia entidad.
             for att in class_to_check.__mapper__.relationships:
