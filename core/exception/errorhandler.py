@@ -4,7 +4,7 @@ import types
 from functools import wraps
 
 
-class MyCustomException(Exception):
+class WrappingException(Exception):
     """Excepción personalizada, a modo de barrera de fallos para intepretar las excepciones y no perder su
     información. Se utiliza en los servicios.
     """
@@ -47,7 +47,7 @@ def catch_exceptions(function):
             # Python puede devolver la ejecución de una función
             # Si se produce algún error, uso el código except... para capturarla y tratarla a modo de barrera de fallos
             return function(*args, **kwargs)
-        except MyCustomException as c:
+        except WrappingException as c:
             # Si ya ha sido envuelta en una CustomException, que la devuelva directamente
             raise c
         except Exception as e:
@@ -67,8 +67,8 @@ def catch_exceptions(function):
                 format(type(e).__name__, e.args)
 
             # Envuelvo la excepción en una CustomException
-            raise MyCustomException(message=message, trace=formatted_traceback,
-                                    source_exception=e, exception_type=exc_type.__name__)
+            raise WrappingException(message=message, trace=formatted_traceback,
+                                    source_exception=e, exception_type=exc_type.__name__) from e
 
     return decorator
 

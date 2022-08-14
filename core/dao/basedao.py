@@ -118,8 +118,12 @@ class BaseDao(object, metaclass=abc.ABCMeta):
         Devuelve la sesión asociada al hilo de ejecución.
         :return: Sesión del hilo actual.
         """
-        # Si no existe sesión para el hilo, lo creo
-        return cls.__thread_session_dict[cls.__get_current_thread()]
+        # Si no hay transacción para el hilo actual, lanzar excepción.
+        current_thread: int = cls.__get_current_thread()
+        if current_thread not in cls.__thread_session_dict:
+            raise KeyError("There is not transaction active in the current thread.")
+
+        return cls.__thread_session_dict[current_thread]
 
     @classmethod
     def commit(cls) -> None:
@@ -741,6 +745,10 @@ class BaseDao(object, metaclass=abc.ABCMeta):
             # acceder al penúltimo nivel del array
             if len(sorted_element.join_split) > 1:
                 previous_key = ".".join(sorted_element.join_split[:-1])
+
+                if previous_key not in alias_dict:
+                    raise ValueError(f"Unknown column {previous_key}.")
+
                 class_to_check = alias_dict[previous_key].model_type
 
             # Si no es el caso, asumimos que pertenece a la entidad principal del dao
