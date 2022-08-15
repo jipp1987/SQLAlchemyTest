@@ -334,6 +334,54 @@ class BaseDao(object, metaclass=abc.ABCMeta):
         """
         my_session = type(self).get_session_for_current_thread()
 
+        # EJEMPLO DE SELECT EN SQLALCHEMY
+        # select cliente, cliente.tipocliente, cliente.tipocliente.usuario_creacion, cliente.tipocliente.usuario_ultmod,
+        # , cliente.tipocliente.usuario_ultmod, cliente.usuario_ultmod, cliente.usuario_creacion from cliente inner
+        # join tipo_cliente left join cliente.usuario_creacion left join cliente.usuario_ult_mod
+        # left join cliente.tipo_cliente.usuario_creacion left join cliente.tipo_cliente.usuario_ult_mod
+        # where cliente.tipo_cliente.codigo like '%0%' and cliente.tipo_cliente.descripcion like '%a%' or
+        # (cliente.tipo_cliente.usuario_creacion.username like '%a%' or
+        # cliente.tipo_cliente.usuario_creacion.username like '%e%')
+        # where(or_(and_(alias_0.codigo.like("%0%"), alias_0.descripcion.like("%a%")),
+        #          or_(alias_4.username.like("%a%"), alias_4.username.like("%e%")).self_group()))
+
+        # SQLALCHEMY
+        # alias_0 = aliased(TipoCliente, name="tipo_cliente")
+        # alias_1 = aliased(Usuario, name="usuario_creacion")
+        # alias_2 = aliased(Usuario, name="usuario_ult_mod")
+
+        # alias_3 = aliased(Usuario, name="tipo_cliente_usuario_ult_mod")
+        # alias_4 = aliased(Usuario, name="tipo_cliente_usuario_creacion")
+
+        # stmt = select(Cliente). \
+        #     outerjoin(Cliente.usuario_ult_mod.of_type(alias_2)). \
+        #     outerjoin(Cliente.usuario_creacion.of_type(alias_1)). \
+        #     join(Cliente.tipo_cliente.of_type(alias_0)). \
+        #     outerjoin(TipoCliente.usuario_creacion.of_type(alias_4)). \
+        #     outerjoin(TipoCliente.usuario_ult_mod.of_type(alias_3)). \
+        #     options(
+        #     contains_eager(Cliente.tipo_cliente, TipoCliente.usuario_ult_mod.of_type(alias_3)),
+        #     contains_eager(Cliente.tipo_cliente, TipoCliente.usuario_creacion.of_type(alias_4)),
+        #     contains_eager(Cliente.tipo_cliente.of_type(alias_0)),
+        #     contains_eager(Cliente.usuario_creacion.of_type(alias_1)),
+        #     contains_eager(Cliente.usuario_ult_mod.of_type(alias_2)),
+        # ).where(or_(and_(alias_0.codigo.like("%0%"), alias_0.descripcion.like("%a%")),
+        #             or_(alias_4.username.like("%a%"), alias_4.username.like("%e%")).self_group()))
+
+        # PASOS PARA RESOLVER LOS JOINS:
+        # 1. Si la select tiene joins, hay que establecer unos alias para todas las tablas involucradas en la consulta.
+        # 2. La cláusula SELECT, salvo que sea para selección de campos individuales, selecciona siempre a la tabla
+        # principal del dao.
+        # 3. Los joins se resuelven de dos partes: por un lado la función join u outerjoin, según sea inner o left, la
+        # cual utiliza el campo de la relación mapeada en el modelo y le añade "of_type(alias_x)", y luego una opción
+        # contains_eager para forzar a que la entidad venga cargada en el objeto resultado. Importante que, si es una
+        # relación de otra relación, añadir la "miga de pan" de los campos de los que proviene la relación; es decir, si
+        # hago un join desde Cliente (tabla principal) a tipo_cliente, y luego a usuario_creación (que es un campo de
+        # tipo_cliente), la opción contains_eager tendría como parámetros:
+        # contains_eager(Cliente.tipo_cliente, TipoCliente.usuario_creacion.of_type(alias_4))
+        # 4. Los alias deben utilizarse para el resto de cláusulas, filter, order, group... siempre con el mismo
+        # formato ...of_type(alias_x)
+
         # Diccionario de alias de campos para utilizar a lo largo de la query. La clave es el nombre del campo tal cual
         # viene en la join_clause
         aliases_dict: Dict[str, _SQLModelHelper] = {}
