@@ -4,7 +4,7 @@ from collections import namedtuple
 import threading
 from copy import deepcopy
 from dataclasses import dataclass
-from typing import Dict, List, Union
+from typing import Dict, List, Union, Tuple
 
 from sqlalchemy import create_engine, select, and_, or_, inspect, func
 from sqlalchemy.engine import Engine
@@ -325,10 +325,33 @@ class BaseDao(object, metaclass=abc.ABCMeta):
                              order_by_clauses=order_by_clauses, field_clauses=field_clauses,
                              group_by_clauses=group_by_clauses)
 
+    def select_by_statement(self, stmt: expression, is_return_row_object: bool) -> List[Union[BaseEntity, Tuple]]:
+        """
+        Hace una select según una expresión de SQLAlchemy pasada como parámetro.
+        :param stmt: Expresión de SQLAlchemy a ejecutar.
+        :param is_return_row_object: Si True, devuelve un objeto row (una lista de tuplas); útil para selects de campos
+        individuales. Si False, devuelve entidades cargadas completamente.
+        :return: List[Union[BaseEntity, Tuple]] En función de cómo se haya confeccionado el statement, devolverá una
+        lista de modelos de base de datos o bien una lista de tuplas (normalmente para selects de campos individuales).
+        """
+        my_session = type(self).get_session_for_current_thread()
+
+        result: List[Union[BaseEntity, Tuple]]
+        if is_return_row_object:
+            result = my_session.execute(stmt).all()
+        else:
+            result = my_session.execute(stmt).scalars().all()
+
+        # Para evitar problemas, hago flush y libero todos los elementos
+        my_session.flush()
+        my_session.expunge_all()
+
+        return result
+
     def __select(self, filter_clauses: List[FilterClause] = None, join_clauses: List[JoinClause] = None,
                  order_by_clauses: List[OrderByClause] = None, group_by_clauses: List[GroupByClause] = None,
                  field_clauses: List[FieldClause] = None) \
-            -> Union[List[BaseEntity], List[dict]]:
+            -> Union[List[BaseEntity], List[tuple]]:
         """
         Hace una consulta a la base de datos.
         """
@@ -588,6 +611,8 @@ class BaseDao(object, metaclass=abc.ABCMeta):
                 filter_clause.object_to_compare = f'%{filter_clause.object_to_compare}' if not filter_clause. \
                     object_to_compare.startswith("%") else filter_clause.object_to_compare
                 filter_expression = field_to_filter_by.like(filter_clause.object_to_compare)
+            else:
+                raise ValueError("Filter not supported or not defined.")
 
             return filter_expression
 
