@@ -1,5 +1,5 @@
 import types
-from typing import Callable, Dict, Type, List
+from typing import Callable, Dict, Type, List, Union, Tuple
 
 from core.dao.basedao import BaseDao, BaseEntity
 from core.dao.daotools import FilterClause, JoinClause, OrderByClause, FieldClause, EnumAggregateFunctions
@@ -142,6 +142,17 @@ class BaseService(object, metaclass=ErrorHandler):
                order_by_clauses: List[OrderByClause] = None):
         return self._dao.select(filter_clauses=filter_clauses, join_clauses=join_clauses,
                                 order_by_clauses=order_by_clauses)
+
+    def select_by_statement(self, stmt: any, is_return_row_object: bool) -> List[Union[BaseEntity, Tuple]]:
+        """
+        Hace una select según una expresión de SQLAlchemy pasada como parámetro.
+        :param stmt: Expresión de SQLAlchemy a ejecutar.
+        :param is_return_row_object: Si True, devuelve un objeto row (una lista de tuplas); útil para selects de campos
+        individuales. Si False, devuelve entidades cargadas completamente.
+        :return: List[Union[BaseEntity, Tuple]] En función de cómo se haya confeccionado el statement, devolverá una
+        lista de modelos de base de datos o bien una lista de tuplas (normalmente para selects de campos individuales).
+        """
+        return self._dao.select_by_statement(stmt, is_return_row_object)
 
     @service_method
     def count_by_filtered_query(self, filter_clauses: List[FilterClause] = None, join_clauses: List[JoinClause] = None)\
