@@ -1,6 +1,6 @@
 from sqlalchemy import Column, Integer, String, Text
 
-from core.dao.basedao import BaseEntity
+from core.dao.modelutils import BaseEntity
 
 
 class Usuario(BaseEntity):

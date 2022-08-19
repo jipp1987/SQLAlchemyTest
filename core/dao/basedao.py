@@ -8,15 +8,12 @@ from typing import Dict, List, Union, Tuple
 
 from sqlalchemy import create_engine, select, and_, or_, inspect, func
 from sqlalchemy.engine import Engine
-from sqlalchemy.orm import sessionmaker, declarative_base, contains_eager, aliased
+from sqlalchemy.orm import sessionmaker, contains_eager, aliased
 from sqlalchemy.sql import expression
 
 from core.dao.daotools import FilterClause, EnumFilterTypes, EnumOperatorTypes, JoinClause, EnumJoinTypes, \
     OrderByClause, GroupByClause, EnumOrderByTypes, FieldClause, EnumAggregateFunctions
-
-BaseEntity = declarative_base()
-"""Declaración de clase para mapeo de todas la entidades de la base de datos."""
-
+from core.dao.modelutils import BaseEntity
 
 _SQLEngineTypes = namedtuple('SQLEngineTypes', ['value', 'engine_name'])
 """Tupla para propiedades de EnumSQLEngineTypes. La uso para poder añadirle una propiedad al enumerado, aparte del 

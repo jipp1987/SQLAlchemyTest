@@ -1,98 +1,28 @@
-import sys
-from typing import List
+from flask_cors import CORS
 
 from core.dao.basedao import BaseDao
-from core.dao.daotools import FilterClause, EnumFilterTypes, EnumOperatorTypes, JoinClause, EnumJoinTypes, \
-    OrderByClause, EnumOrderByTypes
-from core.service.service import ServiceFactory
 from core.utils.fileutils import read_section_in_ini_file
-from impl.service.serviceimpl import TipoClienteServiceImpl, ClienteServiceImpl
 
+from flask import Flask
 
-def query_1():
-    service = ServiceFactory.get_service(TipoClienteServiceImpl)
-
-    filter_1 = FilterClause(field_name="codigo", filter_type=EnumFilterTypes.LIKE, object_to_compare="0")
-
-    filter_6 = FilterClause(field_name="usuario_creacion.username", filter_type=EnumFilterTypes.LIKE,
-                            object_to_compare="a")
-
-    filter_2 = FilterClause(field_name="descripcion", filter_type=EnumFilterTypes.LIKE, object_to_compare="iv",
-                            operator_type=EnumOperatorTypes.OR)
-
-    filter_3 = FilterClause(field_name="descripcion", filter_type=EnumFilterTypes.LIKE, object_to_compare="rr")
-    filter_4 = FilterClause(field_name="descripcion", filter_type=EnumFilterTypes.EQUALS, object_to_compare="Genérico",
-                            operator_type=EnumOperatorTypes.AND)
-    filter_5 = FilterClause(field_name="codigo", filter_type=EnumFilterTypes.LIKE, object_to_compare="0",
-                            operator_type=EnumOperatorTypes.AND)
-    filter_4.related_filter_clauses = [filter_5]
-    filter_2.related_filter_clauses = [filter_3, filter_4]
-
-    filters: List[FilterClause] = [filter_1, filter_6, filter_2]
-
-    joins: List[JoinClause] = [JoinClause(field_name="usuario_creacion", join_type=EnumJoinTypes.LEFT_JOIN,
-                                          is_join_with_fetch=False)]
-
-    result = service.select(filter_clauses=filters, join_clauses=joins)
-
-    for r in result:
-        print(r)
-
-
-def query_2():
-    service = ServiceFactory.get_service(ClienteServiceImpl)
-
-    joins: List[JoinClause] = [
-        JoinClause(field_name="usuario_ult_mod", join_type=EnumJoinTypes.LEFT_JOIN,
-                   is_join_with_fetch=True),
-        JoinClause(field_name="tipo_cliente.usuario_ult_mod", join_type=EnumJoinTypes.LEFT_JOIN,
-                   is_join_with_fetch=True),
-        JoinClause(field_name="usuario_creacion", join_type=EnumJoinTypes.LEFT_JOIN,
-                   is_join_with_fetch=True),
-        JoinClause(field_name="tipo_cliente", join_type=EnumJoinTypes.INNER_JOIN,
-                   is_join_with_fetch=True),
-        JoinClause(field_name="tipo_cliente.usuario_creacion", join_type=EnumJoinTypes.LEFT_JOIN,
-                   is_join_with_fetch=True)
-    ]
-
-    filters: List[FilterClause] = [
-        FilterClause(field_name="tipo_cliente.usuario_creacion.username", filter_type=EnumFilterTypes.LIKE,
-                     object_to_compare="q")
-    ]
-
-    order_by: List[OrderByClause] = [
-        OrderByClause(field_name="tipo_cliente.usuario_ult_mod.username", order_by_type=EnumOrderByTypes.DESC)
-    ]
-
-    result = service.select(join_clauses=joins, filter_clauses=filters, order_by_clauses=None)
-
-    for r in result:
-        print(f"\nTipo cliente: {r.tipo_cliente} \n "
-              f"Usuario creación: {r.usuario_creacion}\n "
-              f"Usuario última mod.: {r.usuario_ult_mod}\n"
-              f"TipoCliente - UsuarioCreacion: {r.tipo_cliente.usuario_creacion}\n"
-              f"TipoCliente - usuario_ult_mod: {r.tipo_cliente.usuario_ult_mod}\n"
-              )
-
-
-def query_3():
-    service = ServiceFactory.get_service(ClienteServiceImpl)
-    # service.test_join()
-    service.test()
-
-
-def query_4():
-    service = ServiceFactory.get_service(ClienteServiceImpl)
-    # service.test_select_fields()
-    return service.count_by_filtered_query()
-
+from impl.rest.restcontrollerimpl import tipo_cliente_blueprint
 
 if __name__ == '__main__':
     # Configurar Dao desde fichero ini
-    d = read_section_in_ini_file(file_name="db", section="MyDataBase")
-    BaseDao.set_db_config_values(**d)
+    db_config = read_section_in_ini_file(file_name="config", section="DB")
+    BaseDao.set_db_config_values(**db_config)
 
-    try:
-        query_2()
-    except Exception as e:
-        print(e, file=sys.stderr)
+    # Configurar app
+    app_config = read_section_in_ini_file(file_name="config", section="REST")
+
+    # Aplicación flask
+    app = Flask(__name__)
+
+    # Registro de blueprints
+    app.register_blueprint(tipo_cliente_blueprint)
+
+    # CORS para habilitar llamadas cross-origin a la api
+    CORS(app)
+
+    # Ejecutar app
+    app.run(**app_config)

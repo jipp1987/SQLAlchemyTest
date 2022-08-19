@@ -1,8 +1,9 @@
 import types
 from typing import Callable, Dict, Type, List, Union, Tuple
 
-from core.dao.basedao import BaseDao, BaseEntity
+from core.dao.basedao import BaseDao
 from core.dao.daotools import FilterClause, JoinClause, OrderByClause, FieldClause, EnumAggregateFunctions
+from core.dao.modelutils import BaseEntity
 from core.exception.errorhandler import ErrorHandler
 
 

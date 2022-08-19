@@ -1,7 +1,7 @@
 from sqlalchemy import Column, Integer, String, Float, ForeignKey
 from sqlalchemy.orm import relationship
 
-from core.dao.basedao import BaseEntity
+from core.dao.modelutils import BaseEntity
 from impl.model.tipocliente import TipoCliente
 from impl.model.usuario import Usuario
 

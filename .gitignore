@@ -151,4 +151,4 @@ crashlytics-build.properties
 fabric.properties
 
 # excluir ficheros de config
-resources/db.ini
+resources/config.ini
