@@ -13,7 +13,7 @@ from sqlalchemy.sql import expression
 
 from core.dao.daotools import FilterClause, EnumFilterTypes, EnumOperatorTypes, JoinClause, EnumJoinTypes, \
     OrderByClause, GroupByClause, EnumOrderByTypes, FieldClause, EnumAggregateFunctions
-from core.dao.modelutils import BaseEntity
+from core.dao.modelutils import BaseEntity, find_entity_id_field_name
 
 _SQLEngineTypes = namedtuple('SQLEngineTypes', ['value', 'engine_name'])
 """Tupla para propiedades de EnumSQLEngineTypes. La uso para poder añadirle una propiedad al enumerado, aparte del 
@@ -191,13 +191,7 @@ class BaseDao(object, metaclass=abc.ABCMeta):
         Devuelve el nombre del campo id de la entidad principal asociada al dao.
         :return: str
         """
-        id_field_name: str = "id"
-        id_field_name_fn = getattr(self.entity_type, "get_id_field_name")
-
-        if id_field_name_fn is not None:
-            id_field_name = id_field_name_fn()
-
-        return id_field_name
+        return find_entity_id_field_name(self.entity_type)
 
     # MÉTODOS DE ACCESO A DATOS
     def create(self, registry: BaseEntity) -> None:

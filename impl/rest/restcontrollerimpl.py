@@ -37,7 +37,7 @@ def select():
 
         joins: List[JoinClause] = [
             JoinClause(field_name="usuario_creacion", join_type=EnumJoinTypes.LEFT_JOIN, is_join_with_fetch=True),
-            # JoinClause(field_name="usuario_ult_mod", join_type=EnumJoinTypes.LEFT_JOIN, is_join_with_fetch=True)
+            JoinClause(field_name="usuario_ult_mod", join_type=EnumJoinTypes.LEFT_JOIN, is_join_with_fetch=True)
         ]
 
         result = _service.select(filter_clauses=filters, order_by_clauses=order, join_clauses=joins)
