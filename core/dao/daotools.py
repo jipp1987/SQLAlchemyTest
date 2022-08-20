@@ -2,6 +2,34 @@ import enum
 from collections import namedtuple
 from typing import Union, List
 
+
+def _find_enum_by_keyword(keyword: str, keyword_field_name: str, enum_type: type(enum.Enum)):
+    """
+    Busca un enumerado por su keyword.
+    :param keyword: Clave a buscar.
+    :param keyword_field_name: Nombre del campo a comparar.
+    :param enum_type: Tipo de enumerado a comprobar.
+    :return: Enumerado del tipo pasado como parámetro. Si no encuentra nada lanza excepción.
+    """
+    e: enum_type = None
+
+    # Primero intento recuperarlo de los propios valores del enumerado
+    names = [member.name for member in enum_type]
+    if keyword in names:
+        e = enum_type[keyword]
+    else:
+        # Si no es existe, itero por los valores del enumerado hasta encontrarlo
+        for data in enum_type:
+            if getattr(data, keyword_field_name) == keyword:
+                e = data
+                break
+
+    if e is None:
+        raise KeyError(f"Not found {keyword} in {enum_type.__name__}.")
+
+    return e
+
+
 FilterType = namedtuple('FilterType', ['value', 'filter_keyword'])
 """Tupla para propiedades de EnumFilterTypes. La uso para poder añadirle una propiedad al enumerado, aparte del propio
 valor."""
@@ -106,12 +134,14 @@ class FilterClause(object):
         """Nombre del campo de la relación, respetando el nivel de anidamiento contando desde la entidad principal sin 
         incluirla, por ejemplo si para el dao de Clientes: tipo_cliente.usuario_creacion sería un join desde Clientes a 
         TipoCliente y de TipoCliente a Usuario."""
-        self.filter_type = filter_type if isinstance(filter_type, EnumFilterTypes) else EnumFilterTypes[filter_type]
+        self.filter_type = filter_type if isinstance(filter_type, EnumFilterTypes) else \
+            _find_enum_by_keyword(keyword=filter_type, keyword_field_name="filter_keyword", enum_type=EnumFilterTypes)
         """Tipo de filtro."""
         self.object_to_compare = object_to_compare
         """Objeto a comparar."""
         self.operator_type = (operator_type if isinstance(operator_type, EnumOperatorTypes)
-                              else EnumOperatorTypes[operator_type]) if operator_type is not None \
+                              else _find_enum_by_keyword(keyword=operator_type, keyword_field_name="operator_keyword",
+                                                         enum_type=EnumOperatorTypes)) if operator_type is not None \
             else EnumOperatorTypes.AND
         self.related_filter_clauses = related_filter_clauses
         """Lista de otros FilterClause relacionados con éste. Se utiliza para filtros que van todos juntos 
@@ -124,7 +154,8 @@ class JoinClause(object):
     def __init__(self, field_name: str, join_type: Union[EnumJoinTypes, str], is_join_with_fetch: bool = False):
         self.field_name = field_name
         """Nombre del campo de la relación entre entidades sobre la que se quiere hacer join."""
-        self.join_type = join_type if isinstance(join_type, EnumJoinTypes) else EnumJoinTypes[join_type]
+        self.join_type = join_type if isinstance(join_type, EnumJoinTypes) else \
+            _find_enum_by_keyword(keyword=join_type, keyword_field_name="join_keyword", enum_type=EnumJoinTypes)
         """Tipo de cláusula JOIN."""
         self.is_join_with_fetch = is_join_with_fetch
         """Indica si el join va a traer todos los campos de la tabla."""
@@ -145,7 +176,8 @@ class OrderByClause(object):
         self.field_name = field_name
         """Nombre del campo."""
         self.order_by_type = order_by_type if isinstance(order_by_type, EnumOrderByTypes) \
-            else EnumOrderByTypes[order_by_type]
+            else _find_enum_by_keyword(keyword=order_by_type, keyword_field_name="order_by_keyword",
+                                       enum_type=EnumOrderByTypes)
         """Tipo de cláusula ORDER BY."""
 
 
@@ -156,8 +188,9 @@ class FieldClause(object):
         self.field_name = field_name
         """Nombre del campo."""
         self.aggregate_function = None if aggregate_function is None else \
-            (aggregate_function if isinstance(aggregate_function, EnumAggregateFunctions)
-             else EnumOrderByTypes[aggregate_function])
+            (aggregate_function if isinstance(aggregate_function, EnumAggregateFunctions) else
+             _find_enum_by_keyword(keyword=aggregate_function, keyword_field_name="function_keyword",
+                                   enum_type=EnumAggregateFunctions))
         """Función de agregado."""
 
 
