@@ -5,10 +5,11 @@ BaseEntity = declarative_base()
 """Declaración de clase para mapeo de todas la entidades de la base de datos."""
 
 
-def find_entity_id_field_name(entity_type: type(BaseEntity)):
+def find_entity_id_field_name(entity_type: type(BaseEntity)) -> str:
     """
     Devuelve el nombre del campo id de la entidad principal asociada al dao.
-    :return: str
+    :param entity_type: Tipo de la entidad, siempre y cuando herede de BaseEntity.
+    :return: Nombre del campo id de la entidad.
     """
     id_field_name: str = "id"
     id_field_name_fn = getattr(entity_type, "get_id_field_name")
@@ -22,7 +23,6 @@ def find_entity_id_field_name(entity_type: type(BaseEntity)):
 def serialize_model(model: BaseEntity) -> dict:
     """
     Convierte a json un modelo de SQLAlchemy.
-    :param model:
     :return: dicctionario de datos de la entidad.
     """
     json_dict: dict = {}
@@ -40,7 +40,7 @@ def serialize_model(model: BaseEntity) -> dict:
         # Añado clave-valor al diccionario
         json_dict[column.name] = getattr(model, column.name)
 
-    # Relaciones
+    # Obtener relaciones del modelo
     relationships = model.__mapper__.relationships
 
     if relationships:
@@ -48,6 +48,7 @@ def serialize_model(model: BaseEntity) -> dict:
         ins = inspect(model)
 
         attr: any
+        local_key: str
         # Este diccionario es para devolver algo en las entidades lazy, el id por lo menos aunque el resto no
         # esté definido
         lazyload_dict: dict
