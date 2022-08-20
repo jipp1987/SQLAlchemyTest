@@ -1,5 +1,6 @@
 import enum
 from collections import namedtuple
+from copy import deepcopy
 from typing import Union, List
 
 
@@ -143,9 +144,23 @@ class FilterClause(object):
                               else _find_enum_by_keyword(keyword=operator_type, keyword_field_name="operator_keyword",
                                                          enum_type=EnumOperatorTypes)) if operator_type is not None \
             else EnumOperatorTypes.AND
+
         self.related_filter_clauses = related_filter_clauses
         """Lista de otros FilterClause relacionados con éste. Se utiliza para filtros que van todos juntos 
         dentro de un paréntesis."""
+        self.__resolve_nested_filters_as_dict()
+
+    def __resolve_nested_filters_as_dict(self):
+        """
+        Hay un caso particular, puede que haya llegado la lista de filtros anidados como una lista de diccionarios.
+        :return: None
+        """
+        if self.related_filter_clauses and isinstance(self.related_filter_clauses[0], dict):
+            copy_of_related_filters = deepcopy(self.related_filter_clauses)
+            self.related_filter_clauses = []
+            for c in copy_of_related_filters:
+                if c:
+                    self.related_filter_clauses.append(FilterClause(**c))
 
 
 class JoinClause(object):
