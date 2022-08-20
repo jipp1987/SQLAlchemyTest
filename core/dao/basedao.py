@@ -634,6 +634,7 @@ class BaseDao(object, metaclass=abc.ABCMeta):
             aux_expression_list: List[expression] = []
             # Inicializo el operador a None: la clave del proceso es comprobar los cambios de operador entre filtros
             f_operator: Union[expression, None] = None
+            f_operator_nested: expression
 
             # Lista global de filtros computados y concatenados por los correspondientes operadores
             global_filter_content: Union[None, expression] = None
@@ -664,10 +665,16 @@ class BaseDao(object, metaclass=abc.ABCMeta):
                     # Estoy envolviendo el contenido en el operador del filtro propietario de los filtros anidados,
                     # primero lo pongo a él y luego la resolución de los filtros asociados (que a su vez pueden
                     # contener otros filtros, pero al llamar de forma recursiva a la función se resolverán todos)
-                    expression_for_nested_filter = f_operator(filter_expression,
-                                                              __inner_resolve_filter_clauses(f.related_filter_clauses,
-                                                                                             field_info_dict_inner)) \
-                        .self_group()
+
+                    # OJO!!! El operador que engloba este filtro interno es el del primer filtro asociado, sino cogerá
+                    # siempre el del filtro "padre" y la consulta no será correcta.
+                    f_operator_nested = or_ if f.related_filter_clauses[0].operator_type == EnumOperatorTypes.OR \
+                        else and_
+
+                    expression_for_nested_filter = f_operator_nested(filter_expression,
+                                                                     __inner_resolve_filter_clauses(
+                                                                         f.related_filter_clauses,
+                                                                         field_info_dict_inner)).self_group()
                     aux_expression_list.append(expression_for_nested_filter)
                 else:
                     # Añadirla a la lista auxiliar que va reiniciándose con cada cambio de operador entre filtros
