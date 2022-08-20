@@ -2,17 +2,17 @@ import sys
 import traceback
 from typing import List, Union
 
-from flask import Blueprint, make_response
+from flask import Blueprint, make_response, request
 
-from core.dao.daotools import FilterClause, EnumFilterTypes, OrderByClause, EnumOrderByTypes, JoinClause, EnumJoinTypes
+from core.dao.daotools import JsonQuery
 from core.dao.modelutils import serialize_model, BaseEntity
 from core.exception.errorhandler import WrappingException
-from core.rest.apitools import RequestResponse, EnumHttpResponseStatusCodes
+from core.rest.apitools import RequestResponse, EnumHttpResponseStatusCodes, RequestBody
 from core.service.service import ServiceFactory
-from core.utils.jsonutils import encode_object_to_json
+from core.utils.jsonutils import encode_object_to_json, decode_object_from_json
 from impl.service.serviceimpl import TipoClienteServiceImpl
 
-tipo_cliente_blueprint = Blueprint("TipoCliente", __name__, url_prefix='/TipoCliente')
+tipo_cliente_blueprint = Blueprint("TipoCliente", __name__, url_prefix='/api/TipoCliente')
 """Blueprint para módulo de api."""
 
 _service: TipoClienteServiceImpl = ServiceFactory.get_service(TipoClienteServiceImpl)
@@ -34,16 +34,18 @@ def select():
     response_body: Union[RequestResponse, None] = None
 
     try:
-        filters: List[FilterClause] = [FilterClause(field_name="descripcion", filter_type=EnumFilterTypes.LIKE,
-                                                    object_to_compare="e")]
-        order: List[OrderByClause] = [OrderByClause(field_name="codigo", order_by_type=EnumOrderByTypes.ASC)]
+        if request.method != 'POST':
+            raise ValueError(f"Request method {request.method} not allowed!!")
 
-        joins: List[JoinClause] = [
-            JoinClause(field_name="usuario_creacion", join_type=EnumJoinTypes.LEFT_JOIN, is_join_with_fetch=True),
-            JoinClause(field_name="usuario_ult_mod", join_type=EnumJoinTypes.LEFT_JOIN, is_join_with_fetch=True)
-        ]
+        # Obtengo el objeto enviado por json con la petición
+        json_format = encode_object_to_json(request.get_json(force=True))
+        # Luego transformo el string json a un objeto RequestBody, pasando el tipo como parámetro
+        request_body: RequestBody = decode_object_from_json(json_format, RequestBody)
+        # Objeto query_object creado a partir del request_object
+        query_object = JsonQuery(request_body.request_object)
 
-        result = _service.select(filter_clauses=filters, order_by_clauses=order, join_clauses=joins)
+        result = _service.select(filter_clauses=query_object.filters, order_by_clauses=query_object.order,
+                                 join_clauses=query_object.joins)
 
         json_result: List[dict] = []
 

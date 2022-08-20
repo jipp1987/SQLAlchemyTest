@@ -39,3 +39,20 @@ def encode_object_to_json(object_to_encode: any) -> str:
     """
     return json.dumps(object_to_encode, cls=CustomJsonEncoder, indent=2, sort_keys=True,
                       ensure_ascii=False)
+
+
+def decode_object_from_json(json_format: str, t: type) -> any:
+    """
+    Transforma un string formato json a una instancia de un objeto.
+    :param json_format: String formato json.
+    :param t: Tipo del objeto a instanciar.
+    :return: Instancia de t con los atributos especificados en json_format.
+    """
+    # lo convierto a diccionario
+    json_dict = json.loads(json_format)
+    # Instanciar un nuevo tipo t.
+    # El operador ** en este caso va a coger el diccionario y va a descomponerlo en grupos de clave valor, de tal
+    # manera que la clave será el identificador del parámetro de __init__ y el valor su valor. Es decir, esto llama
+    # al constructor de la clase; no importa el orden de los valores en json,
+    # pero el nombre debe coincidir con el nombre de los parámetros del constructor.
+    return t(**json_dict)

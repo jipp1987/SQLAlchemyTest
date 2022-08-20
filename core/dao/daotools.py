@@ -1,7 +1,6 @@
 import enum
 from collections import namedtuple
-from typing import Union
-
+from typing import Union, List
 
 FilterType = namedtuple('FilterType', ['value', 'filter_keyword'])
 """Tupla para propiedades de EnumFilterTypes. La uso para poder añadirle una propiedad al enumerado, aparte del propio
@@ -160,3 +159,109 @@ class FieldClause(object):
             (aggregate_function if isinstance(aggregate_function, EnumAggregateFunctions)
              else EnumOrderByTypes[aggregate_function])
         """Función de agregado."""
+
+
+class JsonQuery(object):
+    """Clase para el modelado de consultas desde JSON. Contiene distintos tipos de objetos para fabricar la query."""
+
+    # La clase se inicializa a partir de un diccionario, este objeto está pensado para la recepción de filtros desde
+    # json
+    def __init__(self, query_dict: dict = None):
+        # Declaro los campos como None
+        self.__filters = None
+        self.__order = None
+        self.__joins = None
+        self.__group_by = None
+        self.__fields = None
+        self.__offset = None
+        self.__limit = None
+
+        # Recorrer diccionario estableciendo valores
+        if query_dict is not None:
+            for key, value in query_dict.items():
+                setattr(self, key, value)
+
+    # PROPIEDADES Y SETTERS
+    # Este objeto se crea desde un json: por ello, en el constructor sólo se pasa un diccionario. Uso getters y setters
+    # para establecer el valor desde éste y que las propiedades salgan con los tipos que necesito. Lo que hago es usar
+    # el operador ** para descomponer cada elemento del listado (que python lo interpreta de json como un diccionario)
+    # para que usar pares clave/valor para los argumentos del constructor de cada clase.
+    @property
+    def filters(self) -> List[FilterClause]:
+        """Lista de filtros."""
+        return self.__filters
+
+    @filters.setter
+    def filters(self, filters):
+        if isinstance(filters, list) and filters:
+            self.__filters = []
+            for f in filters:
+                self.__filters.append(FilterClause(**f))
+
+    @property
+    def order(self) -> List[OrderByClause]:
+        """Lista de order by."""
+        return self.__order
+
+    @order.setter
+    def order(self, order):
+        if isinstance(order, list) and order:
+            self.__order = []
+            for f in order:
+                self.__order.append(OrderByClause(**f))
+
+    @property
+    def joins(self) -> List[JoinClause]:
+        """Lista de joins."""
+        return self.__joins
+
+    @joins.setter
+    def joins(self, joins):
+        if isinstance(joins, list) and joins:
+            self.__joins = []
+            for f in joins:
+                self.__joins.append(JoinClause(**f))
+
+    @property
+    def group_by(self) -> List[GroupByClause]:
+        """Lista de group by."""
+        return self.__group_by
+
+    @group_by.setter
+    def group_by(self, group_by):
+        if isinstance(group_by, list) and group_by:
+            self.__group_by = []
+            for f in group_by:
+                self.__group_by.append(GroupByClause(**f))
+
+    @property
+    def fields(self) -> List[FieldClause]:
+        """Lista de campos del SELECT."""
+        return self.__fields
+
+    @fields.setter
+    def fields(self, fields):
+        if isinstance(fields, list) and fields:
+            self.__fields = []
+            for f in fields:
+                self.__fields.append(FieldClause(**f))
+
+    @property
+    def offset(self) -> int:
+        """Offset del limit."""
+        return self.__offset
+
+    @offset.setter
+    def offset(self, offset):
+        if isinstance(offset, int):
+            self.__offset = offset
+
+    @property
+    def limit(self) -> int:
+        """Límite de la consulta."""
+        return self.__limit
+
+    @limit.setter
+    def limit(self, limit):
+        if isinstance(limit, int):
+            self.__limit = limit
