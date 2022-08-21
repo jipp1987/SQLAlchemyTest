@@ -16,12 +16,14 @@ def _find_enum_by_keyword(keyword: str, keyword_field_name: str, enum_type: type
 
     # Primero intento recuperarlo de los propios valores del enumerado
     names = [member.name for member in enum_type]
-    if keyword in names:
-        e = enum_type[keyword]
+    if keyword.upper() in names:
+        e = enum_type[keyword.upper()]
     else:
         # Si no es existe, itero por los valores del enumerado hasta encontrarlo
+        value: str
         for data in enum_type:
-            if getattr(data, keyword_field_name) == keyword:
+            value = getattr(data, keyword_field_name)
+            if value.upper() == keyword.upper():
                 e = data
                 break
 
