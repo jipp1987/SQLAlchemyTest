@@ -2,7 +2,8 @@ import types
 from typing import Callable, Dict, Type, List
 
 from core.dao.basedao import BaseDao
-from core.dao.daotools import FilterClause, JoinClause, OrderByClause, FieldClause, EnumAggregateFunctions
+from core.dao.daotools import FilterClause, JoinClause, OrderByClause, FieldClause, EnumAggregateFunctions, \
+    GroupByClause
 from core.dao.modelutils import BaseEntity
 from core.exception.errorhandler import ErrorHandler
 
@@ -155,7 +156,28 @@ class BaseService(object, metaclass=ErrorHandler):
                                 order_by_clauses=order_by_clauses, limit=limit, offset=offset)
 
     @service_method
-    def count_by_filtered_query(self, filter_clauses: List[FilterClause] = None, join_clauses: List[JoinClause] = None)\
+    def select_fields(self, field_clauses: List[FieldClause], filter_clauses: List[FilterClause] = None,
+                      join_clauses: List[JoinClause] = None, order_by_clauses: List[OrderByClause] = None,
+                      group_by_clauses: List[GroupByClause] = None, limit: int = None, offset: int = None) \
+            -> List[dict]:
+        """
+        Selecciona campos individuales. Los fetch de los joins serán ignorados, sólo se devuelven los campos indicados
+        en los field_clauses.
+        :param field_clauses: Listado de campos a seleccionar.
+        :param filter_clauses: Filtros.
+        :param join_clauses: Joins.
+        :param order_by_clauses: Order Bys.
+        :param group_by_clauses: Group Bys.
+        :param limit: Límite de resultados..
+        :param offset: Índice para paginación de resultados.
+        :return: Lista de diccionarios.
+        """
+        return self._dao.select_fields(filter_clauses=filter_clauses, join_clauses=join_clauses,
+                                       order_by_clauses=order_by_clauses, field_clauses=field_clauses,
+                                       group_by_clauses=group_by_clauses, limit=limit, offset=offset)
+
+    @service_method
+    def count_by_filtered_query(self, filter_clauses: List[FilterClause] = None, join_clauses: List[JoinClause] = None) \
             -> int:
         """
         Cuenta el número de registros de una tabla, pudiendo añadir filtros opcionales.

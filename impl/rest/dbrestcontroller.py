@@ -50,18 +50,24 @@ def select():
             raise AttributeError(f"Entity {query_object.entity} does not exist.") from e1
 
         # Consulta
-        result = service.select(filter_clauses=query_object.filters, order_by_clauses=query_object.order,
-                                join_clauses=query_object.joins, limit=query_object.limit, offset=query_object.offset)
-
         json_result: List[dict] = []
 
-        # Las cláusulas select pueden devolver un modelo heredero de BaseEntity o un diccionario; si es un
-        # diccionario lo añado sin más al resultado. # Si es un modelo, hay que serializarlo en un diccionario.
-        if result:
-            # Compruebo el tipo del primer elemento; no van a venir mezclados, o son modelos o son diccionarios.
-            if isinstance(result[0], dict):
+        # Si la consulta ha llegado con field_clauses, es una selección de campos individuales. Si no ha llegado con
+        # field_clauses, es una selección de entidades.
+        if query_object.fields:
+            result = service.select_fields(filter_clauses=query_object.filters, order_by_clauses=query_object.order,
+                                           join_clauses=query_object.joins,
+                                           field_clauses=query_object.fields, group_by_clauses=query_object.group_by,
+                                           limit=query_object.limit, offset=query_object.offset)
+            # select_fields devuelve una lista de diccionarios; los añado directamente al resultado.
+            if result:
                 json_result.extend(result)
-            else:
+        else:
+            result = service.select(filter_clauses=query_object.filters, order_by_clauses=query_object.order,
+                                    join_clauses=query_object.joins, limit=query_object.limit,
+                                    offset=query_object.offset)
+            # en este caso, el resultado hay que serializarlo al ser modelos de la base de datos
+            if result:
                 for r in result:
                     json_result.append(serialize_model(r))
 
