@@ -107,6 +107,7 @@ class EnumJoinTypes(enum.Enum):
 
     INNER_JOIN = JoinType(1, 'INNER JOIN')
     LEFT_JOIN = JoinType(2, 'LEFT JOIN')
+    RIGHT_JOIN = JoinType(3, 'RIGHT JOIN')
 
 
 AggregateFunction = namedtuple('AggregateFunction', ['value', 'function_keyword'])
@@ -201,7 +202,8 @@ class OrderByClause(object):
 class FieldClause(object):
     """Clase para modelado de selección de campos individuales."""
 
-    def __init__(self, field_name: str, aggregate_function: Union[EnumAggregateFunctions, str] = None):
+    def __init__(self, field_name: str, aggregate_function: Union[EnumAggregateFunctions, str] = None,
+                 is_select_distinct: bool = False):
         self.field_name = field_name
         """Nombre del campo."""
         self.aggregate_function = None if aggregate_function is None else \
@@ -209,6 +211,8 @@ class FieldClause(object):
              _find_enum_by_keyword(keyword=aggregate_function, keyword_field_name="function_keyword",
                                    enum_type=EnumAggregateFunctions))
         """Función de agregado."""
+        self.is_select_distinct = is_select_distinct
+        """Añadir distinct."""
 
 
 class JsonQuery(object):

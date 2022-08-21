@@ -45,7 +45,7 @@ def select():
         query_object = JsonQuery(request_body.request_object)
 
         result = _service.select(filter_clauses=query_object.filters, order_by_clauses=query_object.order,
-                                 join_clauses=query_object.joins)
+                                 join_clauses=query_object.joins, limit=query_object.limit, offset=query_object.offset)
 
         json_result: List[dict] = []
 

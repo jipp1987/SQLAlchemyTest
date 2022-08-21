@@ -285,22 +285,24 @@ class BaseDao(object, metaclass=abc.ABCMeta):
 
     # SELECT
     def select(self, filter_clauses: List[FilterClause] = None, join_clauses: List[JoinClause] = None,
-               order_by_clauses: List[OrderByClause] = None) \
+               order_by_clauses: List[OrderByClause] = None, limit: int = None, offset: int = None) \
             -> List[BaseEntity]:
         """
         Selecciona entidades cargadas con todos sus campos. Si se incluyem joins con fetch, traerá cargadas también
         las entidades anidadas referenciadas en los joins.
-        :param filter_clauses:
-        :param join_clauses:
-        :param order_by_clauses:
+        :param filter_clauses: Cláusula de filtrado.
+        :param join_clauses: Clásula de joins.
+        :param order_by_clauses: Cláusula de order by.
+        :param limit: Límite de resultados.
+        :param offset: Índice para paginación de resultados.
         :return: List[BaseEntity]
         """
         return self.__select(filter_clauses=filter_clauses, join_clauses=join_clauses,
-                             order_by_clauses=order_by_clauses)
+                             order_by_clauses=order_by_clauses, limit=limit, offset=offset)
 
     def select_fields(self, field_clauses: List[FieldClause], filter_clauses: List[FilterClause] = None,
                       join_clauses: List[JoinClause] = None, order_by_clauses: List[OrderByClause] = None,
-                      group_by_clauses: List[GroupByClause] = None) \
+                      group_by_clauses: List[GroupByClause] = None, limit: int = None, offset: int = None) \
             -> List[dict]:
         """
         Selecciona campos individuales. Los fetch de los joins serán ignorados, sólo se devuelven los campos indicados
@@ -310,11 +312,13 @@ class BaseDao(object, metaclass=abc.ABCMeta):
         :param join_clauses: Joins.
         :param order_by_clauses: Order Bys.
         :param group_by_clauses: Group Bys.
+        :param limit: Límite de resultados..
+        :param offset: Índice para paginación de resultados.
         :return: Lista de diccionarios.
         """
         return self.__select(filter_clauses=filter_clauses, join_clauses=join_clauses,
                              order_by_clauses=order_by_clauses, field_clauses=field_clauses,
-                             group_by_clauses=group_by_clauses)
+                             group_by_clauses=group_by_clauses, limit=limit, offset=offset)
 
     def select_by_statement(self, stmt: expression, is_return_row_object: bool) -> List[Union[BaseEntity, Tuple]]:
         """
@@ -341,7 +345,7 @@ class BaseDao(object, metaclass=abc.ABCMeta):
 
     def __select(self, filter_clauses: List[FilterClause] = None, join_clauses: List[JoinClause] = None,
                  order_by_clauses: List[OrderByClause] = None, group_by_clauses: List[GroupByClause] = None,
-                 field_clauses: List[FieldClause] = None) \
+                 field_clauses: List[FieldClause] = None, limit: int = None, offset: int = None) \
             -> Union[List[BaseEntity], List[tuple]]:
         """
         Hace una consulta a la base de datos.
@@ -438,6 +442,12 @@ class BaseDao(object, metaclass=abc.ABCMeta):
             stmt = self.__resolve_order_by_clauses(order_by_clauses=order_by_clauses, stmt=stmt,
                                                    alias_dict=aliases_dict)
 
+        # Limit y offset
+        if limit is not None:
+            stmt = stmt.limit(limit)
+            if offset is not None:
+                stmt = stmt.offset(offset)
+
         # Ejecutar la consulta: si es una consulta de campos, devolver una lista de tuplas; si es una consulta
         # total, devolver una lista de objetos BaseEntity, la que corresponda al dao.
         if is_select_with_fields:
@@ -520,6 +530,10 @@ class BaseDao(object, metaclass=abc.ABCMeta):
 
             # Información del campo
             field_to_select = field_info.field_to_work_with
+
+            # Comprobar si es select distinct.
+            if f.is_select_distinct:
+                field_to_select = func.distinct(field_to_select)
 
             # Comprobar si hay función de agregado
             if f.aggregate_function is not None:
@@ -743,10 +757,17 @@ class BaseDao(object, metaclass=abc.ABCMeta):
         De alguna manera el ORM debe saber de dónde viene el campo."""
 
         for j in join_clauses:
-            # Recuepero el valor del join, el campo del modelo por el que se va a hacer join
+            # Right join no tiene implementación como tal en SQLAlchemy, hay que crear un statement especial para
+            # simularlo y eso no lo puedo contemplar en el select genérico.
+            if j.join_type is not None and j.join_type == EnumJoinTypes.RIGHT_JOIN:
+                raise ValueError("RIGHT JOIN is not supported for generic BaseDao SELECTs. In order to perform "
+                                 "a query with RIGHT JOIN, please create a custom SQLAlchemy statement and use it "
+                                 "on \"select_by_statement\" method.")
+
+            # Recupero el valor del join, el campo del modelo por el que se va a hacer join
             relationship_to_join = alias_dict[j.field_name].model_field_value
 
-            # Recupero el alias calculated anteriormente
+            # Recupero el alias calculado anteriormente
             alias = alias_dict[j.field_name].model_alias
 
             # Compruebo si es una entidad anidada sobre otra entidad a través del campo owner_breadcrumb
