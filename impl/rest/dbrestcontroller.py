@@ -7,11 +7,12 @@ from flask import Blueprint, make_response, request
 from core.dao.daotools import JsonQuery
 from core.dao.modelutils import serialize_model, BaseEntity
 from core.exception.errorhandler import WrappingException
-from core.rest.apitools import RequestResponse, EnumHttpResponseStatusCodes, RequestBody
+from core.rest.apitools import RequestResponse, EnumHttpResponseStatusCodes, DBRequestBody
 from core.utils.jsonutils import encode_object_to_json, decode_object_from_json
 from impl.rest import servicehandler
 
-db_service_blueprint = Blueprint("TipoCliente", __name__, url_prefix='/api/DBService')
+
+db_service_blueprint = Blueprint("DBService", __name__, url_prefix='/api/DBService')
 """Blueprint para módulo de api."""
 
 
@@ -24,33 +25,76 @@ def _convert_request_response_to_json_response(response_body: RequestResponse):
     return make_response(encode_object_to_json(response_body), response_body.status_code)
 
 
+@db_service_blueprint.route('/delete', methods=['POST'])
+def delete():
+    result: str
+    response_body: Union[RequestResponse, None] = None
+
+    try:
+        # Obtengo el objeto enviado por json con la petición
+        json_format = encode_object_to_json(request.get_json(force=True))
+        # Luego transformo el string json a un objeto RequestBody, pasando el tipo como parámetro
+        request_body: DBRequestBody = decode_object_from_json(json_format, DBRequestBody)
+
+        # En función de la entidad seleccionada, cargar el servicio correspodiente
+        if request_body.entity is None or not request_body.entity:
+            raise ValueError("You have to specify a target entity.")
+
+        try:
+            service = getattr(servicehandler, f"{request_body.entity}RestService")
+        except AttributeError as e1:
+            raise AttributeError(f"Entity {request_body.entity} does not exist.") from e1
+
+        # Objeto query_object creado a partir del request_object
+        entity_to_delete = service.get_entity_type(**request_body.request_object)
+        service.delete(entity_to_delete)
+
+        json_result = f"{entity_to_delete} has been deleted."
+        response_body = RequestResponse(response_object=json_result, success=True,
+                                        status_code=EnumHttpResponseStatusCodes.OK.value)
+
+    except (WrappingException, Exception) as e:
+        # Si hay error conocido, pasarlo en el mensaje de error, sino enviar su representación en forma de string.
+        if isinstance(e, WrappingException):
+            print(str(e), file=sys.stderr)
+            error: str = str(e.source_exception) if e.source_exception is not None else str(e)
+            result = error
+        else:
+            print(traceback.print_exc())
+            error: str = str(e)
+            result = error
+
+        response_body = RequestResponse(response_object=result, success=False,
+                                        status_code=EnumHttpResponseStatusCodes.BAD_REQUEST.value)
+    finally:
+        return _convert_request_response_to_json_response(response_body)
+
+
 @db_service_blueprint.route('/select', methods=['POST'])
 def select():
     result: Union[List[dict], List[BaseEntity], str]
     response_body: Union[RequestResponse, None] = None
 
     try:
-        if request.method != 'POST':
-            raise ValueError(f"Request method {request.method} not allowed.")
-
         # Obtengo el objeto enviado por json con la petición
         json_format = encode_object_to_json(request.get_json(force=True))
         # Luego transformo el string json a un objeto RequestBody, pasando el tipo como parámetro
-        request_body: RequestBody = decode_object_from_json(json_format, RequestBody)
-        # Objeto query_object creado a partir del request_object
-        query_object = JsonQuery(request_body.request_object)
+        request_body: DBRequestBody = decode_object_from_json(json_format, DBRequestBody)
 
         # En función de la entidad seleccionada, cargar el servicio correspodiente
-        if query_object.entity is None or not query_object.entity:
+        if request_body.entity is None or not request_body.entity:
             raise ValueError("You have to specify a target entity.")
 
         try:
-            service = getattr(servicehandler, f"{query_object.entity}RestService")
+            service = getattr(servicehandler, f"{request_body.entity}RestService")
         except AttributeError as e1:
-            raise AttributeError(f"Entity {query_object.entity} does not exist.") from e1
+            raise AttributeError(f"Entity {request_body.entity} does not exist.") from e1
 
         # Consulta
         json_result: List[dict] = []
+
+        # Objeto query_object creado a partir del request_object
+        query_object = JsonQuery(request_body.request_object)
 
         # Si la consulta ha llegado con field_clauses, es una selección de campos individuales. Si no ha llegado con
         # field_clauses, es una selección de entidades.

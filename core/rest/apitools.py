@@ -46,6 +46,15 @@ class RequestBody(object):
         """Objeto de la request. Puede ser un BaseEntity, una lista de filtros..."""
 
 
+class DBRequestBody(RequestBody):
+    """Objeto de cuerpo de Request relacionadas con la base de datos."""
+
+    def __init__(self, entity: str, username: str = None, password: str = None, request_object: any = None):
+        super().__init__(username=username, password=password, request_object=request_object)
+        self.entity = entity
+        """Entidad objetivo de la base de datos."""
+
+
 @dataclass(init=True, frozen=True)
 class RequestResponse:
     """Objeto de respuesta de request."""
