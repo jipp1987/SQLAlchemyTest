@@ -229,6 +229,7 @@ class JsonQuery(object):
         self.__fields = None
         self.__offset = None
         self.__limit = None
+        self.__entity = None
 
         # Recorrer diccionario estableciendo valores
         if query_dict is not None:
@@ -240,6 +241,16 @@ class JsonQuery(object):
     # para establecer el valor desde éste y que las propiedades salgan con los tipos que necesito. Lo que hago es usar
     # el operador ** para descomponer cada elemento del listado (que python lo interpreta de json como un diccionario)
     # para que usar pares clave/valor para los argumentos del constructor de cada clase.
+    @property
+    def entity(self) -> str:
+        """Entidad objetivo."""
+        return self.__entity
+
+    @entity.setter
+    def entity(self, entity):
+        if isinstance(entity, str):
+            self.__entity = entity
+
     @property
     def filters(self) -> List[FilterClause]:
         """Lista de filtros."""

@@ -8,15 +8,11 @@ from core.dao.daotools import JsonQuery
 from core.dao.modelutils import serialize_model, BaseEntity
 from core.exception.errorhandler import WrappingException
 from core.rest.apitools import RequestResponse, EnumHttpResponseStatusCodes, RequestBody
-from core.service.service import ServiceFactory
 from core.utils.jsonutils import encode_object_to_json, decode_object_from_json
-from impl.service.serviceimpl import TipoClienteServiceImpl
+from impl.rest import servicehandler
 
-tipo_cliente_blueprint = Blueprint("TipoCliente", __name__, url_prefix='/api/TipoCliente')
+db_service_blueprint = Blueprint("TipoCliente", __name__, url_prefix='/api/DBService')
 """Blueprint para módulo de api."""
-
-_service: TipoClienteServiceImpl = ServiceFactory.get_service(TipoClienteServiceImpl)
-"""Servicio."""
 
 
 def _convert_request_response_to_json_response(response_body: RequestResponse):
@@ -28,14 +24,14 @@ def _convert_request_response_to_json_response(response_body: RequestResponse):
     return make_response(encode_object_to_json(response_body), response_body.status_code)
 
 
-@tipo_cliente_blueprint.route('/select', methods=['POST'])
+@db_service_blueprint.route('/select', methods=['POST'])
 def select():
     result: Union[List[dict], List[BaseEntity], str]
     response_body: Union[RequestResponse, None] = None
 
     try:
         if request.method != 'POST':
-            raise ValueError(f"Request method {request.method} not allowed!!")
+            raise ValueError(f"Request method {request.method} not allowed.")
 
         # Obtengo el objeto enviado por json con la petición
         json_format = encode_object_to_json(request.get_json(force=True))
@@ -44,8 +40,18 @@ def select():
         # Objeto query_object creado a partir del request_object
         query_object = JsonQuery(request_body.request_object)
 
-        result = _service.select(filter_clauses=query_object.filters, order_by_clauses=query_object.order,
-                                 join_clauses=query_object.joins, limit=query_object.limit, offset=query_object.offset)
+        # En función de la entidad seleccionada, cargar el servicio correspodiente
+        if query_object.entity is None or not query_object.entity:
+            raise ValueError("You have to specify a target entity.")
+
+        try:
+            service = getattr(servicehandler, f"{query_object.entity}Service")
+        except AttributeError as e1:
+            raise AttributeError(f"Entity {query_object.entity} does not exist.") from e1
+
+        # Consulta
+        result = service.select(filter_clauses=query_object.filters, order_by_clauses=query_object.order,
+                                join_clauses=query_object.joins, limit=query_object.limit, offset=query_object.offset)
 
         json_result: List[dict] = []
 

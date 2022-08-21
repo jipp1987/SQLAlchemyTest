@@ -5,7 +5,7 @@ from core.utils.fileutils import read_section_in_ini_file
 
 from flask import Flask
 
-from impl.rest.restcontrollerimpl import tipo_cliente_blueprint
+from impl.rest.restcontrollerimpl import db_service_blueprint
 
 if __name__ == '__main__':
     # Configurar Dao desde fichero ini
@@ -19,7 +19,7 @@ if __name__ == '__main__':
     app = Flask(__name__)
 
     # Registro de blueprints
-    app.register_blueprint(tipo_cliente_blueprint)
+    app.register_blueprint(db_service_blueprint)
 
     # CORS para habilitar llamadas cross-origin a la api
     CORS(app)
