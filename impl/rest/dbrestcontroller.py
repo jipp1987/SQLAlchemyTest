@@ -45,7 +45,7 @@ def select():
             raise ValueError("You have to specify a target entity.")
 
         try:
-            service = getattr(servicehandler, f"{query_object.entity}Service")
+            service = getattr(servicehandler, f"{query_object.entity}RestService")
         except AttributeError as e1:
             raise AttributeError(f"Entity {query_object.entity} does not exist.") from e1
 

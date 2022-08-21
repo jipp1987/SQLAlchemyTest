@@ -3,36 +3,6 @@ from collections import namedtuple
 from copy import deepcopy
 from typing import Union, List
 
-
-def _find_enum_by_keyword(keyword: str, keyword_field_name: str, enum_type: type(enum.Enum)):
-    """
-    Busca un enumerado por su keyword.
-    :param keyword: Clave a buscar.
-    :param keyword_field_name: Nombre del campo a comparar.
-    :param enum_type: Tipo de enumerado a comprobar.
-    :return: Enumerado del tipo pasado como parámetro. Si no encuentra nada lanza excepción.
-    """
-    e: enum_type = None
-
-    # Primero intento recuperarlo de los propios valores del enumerado
-    names = [member.name for member in enum_type]
-    if keyword.upper() in names:
-        e = enum_type[keyword.upper()]
-    else:
-        # Si no es existe, itero por los valores del enumerado hasta encontrarlo
-        value: str
-        for data in enum_type:
-            value = getattr(data, keyword_field_name)
-            if value.upper() == keyword.upper():
-                e = data
-                break
-
-    if e is None:
-        raise KeyError(f"Not found {keyword} in {enum_type.__name__}.")
-
-    return e
-
-
 FilterType = namedtuple('FilterType', ['value', 'filter_keyword'])
 """Tupla para propiedades de EnumFilterTypes. La uso para poder añadirle una propiedad al enumerado, aparte del propio
 valor."""
@@ -147,23 +117,9 @@ class FilterClause(object):
                               else _find_enum_by_keyword(keyword=operator_type, keyword_field_name="operator_keyword",
                                                          enum_type=EnumOperatorTypes)) if operator_type is not None \
             else EnumOperatorTypes.AND
-
         self.related_filter_clauses = related_filter_clauses
         """Lista de otros FilterClause relacionados con éste. Se utiliza para filtros que van todos juntos 
         dentro de un paréntesis."""
-        self.__resolve_nested_filters_as_dict()
-
-    def __resolve_nested_filters_as_dict(self):
-        """
-        Hay un caso particular, puede que haya llegado la lista de filtros anidados como una lista de diccionarios.
-        :return: None
-        """
-        if self.related_filter_clauses and isinstance(self.related_filter_clauses[0], dict):
-            copy_of_related_filters = deepcopy(self.related_filter_clauses)
-            self.related_filter_clauses = []
-            for c in copy_of_related_filters:
-                if c:
-                    self.related_filter_clauses.append(FilterClause(**c))
 
 
 class JoinClause(object):
@@ -215,6 +171,48 @@ class FieldClause(object):
         """Añadir distinct."""
 
 
+def _find_enum_by_keyword(keyword: str, keyword_field_name: str, enum_type: type(enum.Enum)):
+    """
+    Busca un enumerado por su keyword.
+    :param keyword: Clave a buscar.
+    :param keyword_field_name: Nombre del campo a comparar.
+    :param enum_type: Tipo de enumerado a comprobar.
+    :return: Enumerado del tipo pasado como parámetro. Si no encuentra nada lanza excepción.
+    """
+    e: enum_type = None
+
+    # Primero intento recuperarlo de los propios valores del enumerado
+    names = [member.name for member in enum_type]
+    if keyword.upper() in names:
+        e = enum_type[keyword.upper()]
+    else:
+        # Si no es existe, itero por los valores del enumerado hasta encontrarlo
+        value: str
+        for data in enum_type:
+            value = getattr(data, keyword_field_name)
+            if value.upper() == keyword.upper():
+                e = data
+                break
+
+    if e is None:
+        raise KeyError(f"Not found {keyword} in {enum_type.__name__}.")
+
+    return e
+
+
+def _resolve_nested_filters_as_dict(filter_clause: FilterClause):
+    """
+    Resolver los filtros anidados que llegan como diccionario durante la deserialización de los FilterClauses..
+    :return: None
+    """
+    if filter_clause.related_filter_clauses:
+        copy_of_related_filters = deepcopy(filter_clause.related_filter_clauses)
+        filter_clause.related_filter_clauses = []
+        for c in copy_of_related_filters:
+            if c:
+                filter_clause.related_filter_clauses.append(FilterClause(**c))
+
+
 class JsonQuery(object):
     """Clase para el modelado de consultas desde JSON. Contiene distintos tipos de objetos para fabricar la query."""
 
@@ -260,8 +258,12 @@ class JsonQuery(object):
     def filters(self, filters):
         if isinstance(filters, list) and filters:
             self.__filters = []
+            new_filter: FilterClause
             for f in filters:
-                self.__filters.append(FilterClause(**f))
+                new_filter = FilterClause(**f)
+                # Comprobar los posibles filtros anidados que vienen como diccionario
+                _resolve_nested_filters_as_dict(new_filter)
+                self.__filters.append(new_filter)
 
     @property
     def order(self) -> List[OrderByClause]:

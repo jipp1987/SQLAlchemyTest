@@ -5,7 +5,7 @@ from core.utils.fileutils import read_section_in_ini_file
 
 from flask import Flask
 
-from impl.rest.restcontrollerimpl import db_service_blueprint
+from impl.rest.dbrestcontroller import db_service_blueprint
 
 if __name__ == '__main__':
     # Configurar Dao desde fichero ini
