@@ -1,3 +1,5 @@
+from typing import Union
+
 from sqlalchemy import inspect
 from sqlalchemy.orm import declarative_base
 
@@ -18,6 +20,54 @@ def find_entity_id_field_name(entity_type: type(BaseEntity)) -> str:
         id_field_name = id_field_name_fn()
 
     return id_field_name
+
+
+def deserialize_model(model_dict: dict, entity_type: type(BaseEntity)) -> BaseEntity:
+    """
+    Convierte de diccionario a modelo de SQLAlchemy.
+    :param model_dict: Diccionario json con los valores del objeto.
+    :param entity_type: Tipo de entidad, heredando de BaseEntity.
+    :return: Nueva entidad del tipo pasado como parámetro.
+    """
+    # Instancio una nueva entidad del tipo pasado como parámetro
+    new_entity = entity_type()
+
+    # Recorrer las columnas de la clase, ignorando por el momento las relaciones
+    columns = entity_type.__table__.columns
+    for column in columns:
+        if column.name in model_dict:
+            setattr(new_entity, column.name, model_dict[column.name])
+
+    # Obtener relaciones del modelo
+    relationships = entity_type.__mapper__.relationships
+
+    if relationships:
+        ins = inspect(entity_type)
+
+        local_key: Union[str, None]
+        nested_entity: BaseEntity
+
+        for rel in relationships:
+            local_key = None
+
+            if rel.key in model_dict:
+                for lcl in rel.local_columns:
+                    # Buscar el nombre de la foreign_key para completar el dato
+                    local_key = ins.mapper.get_property_by_column(lcl).key
+                    break
+
+                if local_key:
+                    # Llamo recursivamente a esta función para crear la entidad anidada
+                    nested_entity = deserialize_model(model_dict[rel.key], rel.entity.class_)
+                    setattr(new_entity, rel.key, nested_entity)
+                    # Completo la columna de la foreign key: el valor es el que corresponde al id de la clase anidada
+                    setattr(new_entity, local_key, getattr(nested_entity, find_entity_id_field_name(rel.entity.class_)))
+                else:
+                    # Si no encuentra la clave local, algo ha sucedido
+                    raise RuntimeError(f"An error has ocurred during the deserialization of {entity_type.__name__}: "
+                                       f"couldn't find a foreign key for {rel.key}")
+
+    return new_entity
 
 
 def serialize_model(model: BaseEntity) -> dict:

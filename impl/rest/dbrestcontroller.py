@@ -6,7 +6,7 @@ from typing import List
 from flask import Blueprint, make_response, request
 
 from core.dao.daotools import JsonQuery
-from core.dao.modelutils import serialize_model
+from core.dao.modelutils import serialize_model, deserialize_model
 from core.exception.errorhandler import WrappingException
 from core.rest.apitools import RequestResponse, EnumHttpResponseStatusCodes, DBRequestBody
 from core.service.service import BaseService
@@ -88,7 +88,7 @@ def delete():
         service: BaseService = kwargs["service"]
 
         # Objeto query_object creado a partir del request_object
-        entity_to_delete = service.get_entity_type(**request_body.request_object)  # noqa
+        entity_to_delete = deserialize_model(request_body.request_object, service.get_entity_type())
         service.delete(entity_to_delete)
 
         json_result = f"'{entity_to_delete}' has been deleted."
