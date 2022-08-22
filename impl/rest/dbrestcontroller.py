@@ -44,6 +44,7 @@ def _db_rest_fn(function):
             # Añado los parámetros a la función
             kwargs['request_body'] = request_body
             kwargs['service'] = service
+
             return function(*args, **kwargs)
         except (WrappingException, Exception) as e:
             result: str
@@ -73,8 +74,71 @@ def _convert_request_response_to_json_response(response_body: RequestResponse):
     return make_response(encode_object_to_json(response_body), response_body.status_code)
 
 
+@db_service_blueprint.route('/create', methods=['POST'])
+def create():
+    """
+    Servicio Rest para crear entidades en la base de datos.
+    """
+
+    @_db_rest_fn
+    def __create(*args, **kwargs): # noqa
+        """
+        Función interna create.
+        :param request_body:
+        :param service:
+        :return: Response.
+        """
+        request_body: DBRequestBody = kwargs["request_body"]
+        service: BaseService = kwargs["service"]
+
+        # Objeto query_object creado a partir del request_object
+        entity_to_be_created = deserialize_model(request_body.request_object, service.get_entity_type())
+        service.create(entity_to_be_created)
+
+        json_result = f"'{entity_to_be_created}' has been created."
+        response_body = RequestResponse(response_object=json_result, success=True,
+                                        status_code=EnumHttpResponseStatusCodes.OK.value)
+
+        return _convert_request_response_to_json_response(response_body)
+
+    return __create()
+
+
+@db_service_blueprint.route('/update', methods=['POST'])
+def update():
+    """
+    Servicio Rest para actualizar entidades en la base de datos.
+    """
+
+    @_db_rest_fn
+    def __update(*args, **kwargs): # noqa
+        """
+        Función interna update.
+        :param request_body:
+        :param service:
+        :return: Response.
+        """
+        request_body: DBRequestBody = kwargs["request_body"]
+        service: BaseService = kwargs["service"]
+
+        # Objeto query_object creado a partir del request_object
+        entity_to_be_updated = deserialize_model(request_body.request_object, service.get_entity_type())
+        service.update(entity_to_be_updated)
+
+        json_result = f"'{entity_to_be_updated}' has been updated."
+        response_body = RequestResponse(response_object=json_result, success=True,
+                                        status_code=EnumHttpResponseStatusCodes.OK.value)
+
+        return _convert_request_response_to_json_response(response_body)
+
+    return __update()
+
+
 @db_service_blueprint.route('/delete', methods=['POST'])
 def delete():
+    """
+    Servicio Rest para eliminar entidades en la base de datos.
+    """
 
     @_db_rest_fn
     def __delete(*args, **kwargs): # noqa
@@ -82,16 +146,16 @@ def delete():
         Función interna delete.
         :param request_body:
         :param service:
-        :return:
+        :return: Response.
         """
         request_body: DBRequestBody = kwargs["request_body"]
         service: BaseService = kwargs["service"]
 
         # Objeto query_object creado a partir del request_object
-        entity_to_delete = deserialize_model(request_body.request_object, service.get_entity_type())
-        service.delete(entity_to_delete)
+        entity_to_be_deleted = deserialize_model(request_body.request_object, service.get_entity_type())
+        service.delete(entity_to_be_deleted)
 
-        json_result = f"'{entity_to_delete}' has been deleted."
+        json_result = f"'{entity_to_be_deleted}' has been deleted."
         response_body = RequestResponse(response_object=json_result, success=True,
                                         status_code=EnumHttpResponseStatusCodes.OK.value)
 
@@ -102,6 +166,9 @@ def delete():
 
 @db_service_blueprint.route('/select', methods=['POST'])
 def select():
+    """
+    Servicio Rest para seleccionar entidades de la base de datos.
+    """
 
     @_db_rest_fn
     def __select(*args, **kwargs): # noqa
