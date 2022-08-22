@@ -56,16 +56,12 @@ def deserialize_model(model_dict: dict, entity_type: type(BaseEntity)) -> BaseEn
                     local_key = ins.mapper.get_property_by_column(lcl).key
                     break
 
-                if local_key:
+                if local_key and model_dict[rel.key] is not None:
                     # Llamo recursivamente a esta función para crear la entidad anidada
                     nested_entity = deserialize_model(model_dict[rel.key], rel.entity.class_)
                     setattr(new_entity, rel.key, nested_entity)
                     # Completo la columna de la foreign key: el valor es el que corresponde al id de la clase anidada
                     setattr(new_entity, local_key, getattr(nested_entity, find_entity_id_field_name(rel.entity.class_)))
-                else:
-                    # Si no encuentra la clave local, algo ha sucedido
-                    raise RuntimeError(f"An error has ocurred during the deserialization of {entity_type.__name__}: "
-                                       f"couldn't find a foreign key for {rel.key}")
 
     return new_entity
 
