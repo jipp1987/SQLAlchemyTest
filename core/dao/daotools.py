@@ -159,7 +159,7 @@ class FieldClause(object):
     """Clase para modelado de selección de campos individuales."""
 
     def __init__(self, field_name: str, aggregate_function: Union[EnumAggregateFunctions, str] = None,
-                 is_select_distinct: bool = False):
+                 is_select_distinct: bool = False, field_label: str = None):
         self.field_name = field_name
         """Nombre del campo."""
         self.aggregate_function = None if aggregate_function is None else \
@@ -169,6 +169,8 @@ class FieldClause(object):
         """Función de agregado."""
         self.is_select_distinct = is_select_distinct
         """Añadir distinct."""
+        self.field_label = field_label
+        """Alias del campo."""
 
 
 def _find_enum_by_keyword(keyword: str, keyword_field_name: str, enum_type: type(enum.Enum)):

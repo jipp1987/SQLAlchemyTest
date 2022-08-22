@@ -538,17 +538,21 @@ class BaseDao(object, metaclass=abc.ABCMeta):
             # Comprobar si hay función de agregado
             if f.aggregate_function is not None:
                 if f.aggregate_function == EnumAggregateFunctions.COUNT:
-                    fields_to_select.append(func.count(field_to_select))
+                    field_to_select = func.count(field_to_select)
                 elif f.aggregate_function == EnumAggregateFunctions.MAX:
-                    fields_to_select.append(func.max(field_to_select))
+                    field_to_select = func.max(field_to_select)
                 elif f.aggregate_function == EnumAggregateFunctions.MIN:
-                    fields_to_select.append(func.min(field_to_select))
+                    field_to_select = func.min(field_to_select)
                 elif f.aggregate_function == EnumAggregateFunctions.SUM:
-                    fields_to_select.append(func.sum(field_to_select))
+                    field_to_select = func.sum(field_to_select)
                 elif f.aggregate_function == EnumAggregateFunctions.AVG:
-                    fields_to_select.append(func.avg(field_to_select))
-            else:
-                fields_to_select.append(field_to_select)
+                    field_to_select = func.avg(field_to_select)
+
+            # Label o alias del campo
+            if f.field_label:
+                field_to_select = field_to_select.label(f.field_label)
+
+            fields_to_select.append(field_to_select)
 
         return fields_to_select
 

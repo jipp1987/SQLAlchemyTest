@@ -1,12 +1,12 @@
 import sys
 import traceback
 from functools import wraps
-from typing import List, Union
+from typing import List
 
 from flask import Blueprint, make_response, request
 
 from core.dao.daotools import JsonQuery
-from core.dao.modelutils import serialize_model, BaseEntity
+from core.dao.modelutils import serialize_model
 from core.exception.errorhandler import WrappingException
 from core.rest.apitools import RequestResponse, EnumHttpResponseStatusCodes, DBRequestBody
 from core.service.service import BaseService
@@ -116,7 +116,7 @@ def select():
         request_body: DBRequestBody = kwargs["request_body"]
         service: BaseService = kwargs["service"]
 
-        result: Union[List[dict], List[BaseEntity], str]
+        result: list
 
         # Consulta
         json_result: List[dict] = []
@@ -131,9 +131,10 @@ def select():
                                            join_clauses=query_object.joins,
                                            field_clauses=query_object.fields, group_by_clauses=query_object.group_by,
                                            limit=query_object.limit, offset=query_object.offset)
-            # select_fields devuelve una lista de diccionarios; los añado directamente al resultado.
+            # select_fields devuelve una lista de objetos row de sqlalchemy; hay que convertirlos en diccionario.
             if result:
-                json_result.extend(result)
+                for row in result:
+                    json_result.append(dict(row))
         else:
             result = service.select(filter_clauses=query_object.filters, order_by_clauses=query_object.order,
                                     join_clauses=query_object.joins, limit=query_object.limit,
