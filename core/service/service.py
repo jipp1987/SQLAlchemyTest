@@ -4,7 +4,7 @@ from typing import Callable, Dict, Type, List
 from core.dao.basedao import BaseDao
 from core.dao.daotools import FilterClause, JoinClause, OrderByClause, FieldClause, EnumAggregateFunctions, \
     GroupByClause
-from core.dao.modelutils import BaseEntity
+from core.dao.modelutils import BaseEntity, set_model_properties_by_dict
 from core.exception.errorhandler import ErrorHandler
 
 
@@ -111,11 +111,34 @@ class BaseService(object, metaclass=ErrorHandler):
     @service_method
     def update(self, registry: BaseEntity) -> None:
         """
-        Crea una entidad en la base de datos y sincroniza su id.
-        :param registry: Registro a crear.
+        Modifica una entidad en la base de datos. Modifica la entidad al completo, tal y como llega en el parámetro.
+        :param registry: Registro a modificar.
         :return: None
         """
         self._dao.update(registry)
+
+    @service_method
+    def update_fields(self, registry_id: any, values_dict: dict) -> BaseEntity:
+        """
+        Modifica los campos de la entidad que son enviados en el diccionario de valores.
+        :param registry_id: Id del registro a modificar.
+        :param values_dict: Diccionario de valores a actualizar.
+        :return: None
+        """
+        # Busco la entidad a modificar por id.
+        registry = self.find_by_id(registry_id)
+        if registry is None:
+            raise ValueError(f"There is not an entity of class {self.get_entity_type().__name__} with id "
+                             f"{str(registry_id)}")
+
+        # Modifico los datos enviados por parámetro en el diccionario, dejando el resto igual que estaban en la base de
+        # datos.
+        set_model_properties_by_dict(model_dict=values_dict, entity=registry, is_an_update=True)
+
+        # Actualizar la entidad
+        self.update(registry)
+
+        return registry
 
     @service_method
     def delete(self, registry: BaseEntity) -> None:

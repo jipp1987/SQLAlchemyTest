@@ -6,7 +6,7 @@ from typing import List
 from flask import Blueprint, make_response, request
 
 from core.dao.daotools import JsonQuery
-from core.dao.modelutils import serialize_model, deserialize_model
+from core.dao.modelutils import serialize_model, deserialize_model, find_entity_id_field_name
 from core.exception.errorhandler import WrappingException
 from core.rest.apitools import RequestResponse, EnumHttpResponseStatusCodes, DBRequestBody
 from core.service.service import BaseService
@@ -121,9 +121,17 @@ def update():
         request_body: DBRequestBody = kwargs["request_body"]
         service: BaseService = kwargs["service"]
 
-        # Objeto query_object creado a partir del request_object
-        entity_to_be_updated = deserialize_model(request_body.request_object, service.get_entity_type())
-        service.update(entity_to_be_updated)
+        # Recupero el id de la entidad del diccionario de valores.
+        id_field_name: str = find_entity_id_field_name(service.get_entity_type())
+        entity_id: any
+
+        if id_field_name in request_body.request_object:
+            entity_id = request_body.request_object[id_field_name]
+        else:
+            raise KeyError("You have to specify the id of the entity on the request.")
+
+        # Actualizo los campos pasados como parámetro.
+        entity_to_be_updated = service.update_fields(registry_id=entity_id, values_dict=request_body.request_object)
 
         json_result = f"'{entity_to_be_updated}' has been updated."
         response_body = RequestResponse(response_object=json_result, success=True,
