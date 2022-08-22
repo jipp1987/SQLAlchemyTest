@@ -131,10 +131,8 @@ def select():
                                            join_clauses=query_object.joins,
                                            field_clauses=query_object.fields, group_by_clauses=query_object.group_by,
                                            limit=query_object.limit, offset=query_object.offset)
-            # select_fields devuelve una lista de objetos row de sqlalchemy; hay que convertirlos en diccionario.
             if result:
-                for row in result:
-                    json_result.append(dict(row))
+                json_result.extend(result)
         else:
             result = service.select(filter_clauses=query_object.filters, order_by_clauses=query_object.order,
                                     join_clauses=query_object.joins, limit=query_object.limit,

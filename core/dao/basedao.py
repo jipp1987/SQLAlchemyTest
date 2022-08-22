@@ -451,7 +451,12 @@ class BaseDao(object, metaclass=abc.ABCMeta):
         # Ejecutar la consulta: si es una consulta de campos, devolver una lista de tuplas; si es una consulta
         # total, devolver una lista de objetos BaseEntity, la que corresponda al dao.
         if is_select_with_fields:
-            result = my_session.execute(stmt).all()
+            row_result = my_session.execute(stmt).all()
+            # Esto devuelve un objeto Row de SQLAlchemy, lo convierto a diccionario
+            result = []
+            if row_result:
+                for r in row_result:
+                    result.append(dict(r))
         else:
             result = my_session.execute(stmt).scalars().all()
 
