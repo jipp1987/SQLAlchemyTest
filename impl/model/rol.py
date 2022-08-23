@@ -1,5 +1,4 @@
 from sqlalchemy import Column, Integer, String
-from sqlalchemy.orm import relationship
 
 from core.dao.modelutils import BaseEntity
 
@@ -14,7 +13,7 @@ class Rol(BaseEntity):
     nombre = Column(String(30), nullable=False)
 
     # Relación n a m de Usuarios-roles
-    usuarios = relationship("Usuario", secondary="usuariosroles", back_populates="roles", lazy="raise")
+    # usuarios = relationship("Usuario", secondary="usuariosroles", back_populates="roles", lazy="raise")
 
     # Constructor
     def __init__(self, **kwargs):
@@ -46,4 +45,4 @@ class Rol(BaseEntity):
 
     # tostring
     def __repr__(self):
-        return f'id = {self.id}, nombre = {self.nombre}'
+        return f'[Rol] id = {self.id}, nombre = {self.nombre}'

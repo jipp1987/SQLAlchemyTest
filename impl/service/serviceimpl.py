@@ -4,6 +4,7 @@ from core.dao.daotools import JoinClause, EnumJoinTypes, FieldClause, EnumAggreg
 from core.service.service import BaseService, service_method, ServiceFactory
 from impl.dao.daoimpl import ClienteDaoImpl, TipoClienteDaoImpl, UsuarioDaoImpl, RolDaoImpl, UsuarioRolDaoImpl
 from impl.model.tipocliente import TipoCliente
+from impl.model.usuario import Usuario
 
 
 class ClienteServiceImpl(BaseService):
@@ -99,8 +100,44 @@ class UsuarioServiceImpl(BaseService):
 class RolServiceImpl(BaseService):
     """Implementación del service de roles."""
 
+    USUARIOS_ASOCIADOS_DICT_KEY = "usuarios"
+    """Clave para recuperar los usuarios asociados de un json string."""
+
     def __init__(self):
         super().__init__(dao=RolDaoImpl())
+
+    @service_method
+    def update_fields(self, registry_id: any, values_dict: dict):
+        many_to_many_updates = {}
+
+        # Sobrescritura para recuperar del json los usuarios asociados al rol.
+        if self.USUARIOS_ASOCIADOS_DICT_KEY in values_dict:
+            usuarios_asociados: List[dict] = values_dict[self.USUARIOS_ASOCIADOS_DICT_KEY]
+            many_to_many_updates[self.USUARIOS_ASOCIADOS_DICT_KEY] = []
+            for u in usuarios_asociados:
+                many_to_many_updates[self.USUARIOS_ASOCIADOS_DICT_KEY].append(Usuario(**u))
+
+            # Elimino el valor del diccionario, lo trato individualmente en el update
+            values_dict.pop(self.USUARIOS_ASOCIADOS_DICT_KEY)
+
+        return super().update_fields(registry_id, values_dict, many_to_many_updates)
+
+    @service_method
+    def update(self, registry, many_to_many_updates: dict = None) -> None:
+        """
+        Modifica una entidad en la base de datos. Modifica la entidad al completo, tal y como llega en el parámetro.
+        :param registry: Registro a modificar.
+        :param many_to_many_updates: Diccionario opcional para actualizar relaciones many to many asociadas
+        a la entidad.
+        :return: None
+        """
+        self._dao.update(registry)
+
+        # Puede haber llegado una actualización many-to-many
+        if many_to_many_updates:
+            usuario_rol_service = ServiceFactory.get_service(UsuarioRolServiceImpl)
+            usuario_rol_service.update_usuarios_roles_by_rol(registry,
+                                                             many_to_many_updates[self.USUARIOS_ASOCIADOS_DICT_KEY])
 
 
 class UsuarioRolServiceImpl(BaseService):
@@ -108,3 +145,7 @@ class UsuarioRolServiceImpl(BaseService):
 
     def __init__(self):
         super().__init__(dao=UsuarioRolDaoImpl())
+
+    @service_method
+    def update_usuarios_roles_by_rol(self, rol, usuarios_asociados):
+        return self._dao.update_usuarios_roles_by_rol(rol, usuarios_asociados)

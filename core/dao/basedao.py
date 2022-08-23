@@ -214,10 +214,11 @@ class BaseDao(object, metaclass=abc.ABCMeta):
         # Recuperar el último registro para obtener el id asignado y establecerlo como el id de la entidad pasada como
         # parámetro
         id_field_name = self.get_entity_id_field_name()
-        id_field = getattr(registry_to_create, id_field_name)
 
-        # Consultar el último registro para recuperar su id
-        setattr(registry, id_field_name, id_field)
+        if hasattr(registry_to_create, id_field_name):
+            id_field = getattr(registry_to_create, id_field_name)
+            # Establecer el valor del id en el registro pasado como parámetro
+            setattr(registry, id_field_name, id_field)
 
     def update(self, registry: BaseEntity) -> None:
         """
@@ -272,16 +273,24 @@ class BaseDao(object, metaclass=abc.ABCMeta):
         my_session.query(self.entity_type).filter(id_field == id_field_value).delete()
         my_session.flush()
 
-    def find_by_id(self, registry_id: any):
+    def find_by_id(self, registry_id: any, join_clauses: List[JoinClause] = None) -> Union[BaseEntity, None]:
         """
         Devuelve un registro a partir de un id.
         :param registry_id: Id del registro en la base de datos.
+        :param join_clauses: Cláusulas join.
         :return: Una instancia de la clase principal del dao si el registro exite; None si no existe.
         """
-        my_session = type(self).get_session_for_current_thread()
-        result = my_session.query(self.entity_type).get(registry_id)
+        entity: Union[BaseEntity, None] = None
 
-        return result
+        # my_session = type(self).get_session_for_current_thread()
+        # result = my_session.query(self.entity_type).get(registry_id)
+        filters: List[FilterClause] = [FilterClause(field_name=self.get_entity_id_field_name(),
+                                                    filter_type=EnumFilterTypes.EQUALS, object_to_compare=registry_id)]
+        result = self.__select(join_clauses=join_clauses, filter_clauses=filters)
+        if result:
+            entity = result[0]
+
+        return entity
 
     # SELECT
     def select(self, filter_clauses: List[FilterClause] = None, join_clauses: List[JoinClause] = None,

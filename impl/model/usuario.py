@@ -1,5 +1,4 @@
 from sqlalchemy import Column, Integer, String, Text
-from sqlalchemy.orm import relationship
 
 from core.dao.modelutils import BaseEntity
 
@@ -15,7 +14,7 @@ class Usuario(BaseEntity):
     password = Column(Text, nullable=False)
 
     # Relación n a m de Usuarios-roles
-    roles = relationship("Rol", secondary="usuariosroles", back_populates="usuarios", lazy="raise")
+    # roles = relationship("Rol", secondary="usuariosroles", back_populates="usuarios", lazy="raise")
 
     # Constructor
     def __init__(self, **kwargs):
@@ -49,4 +48,4 @@ class Usuario(BaseEntity):
 
     # tostring
     def __repr__(self):
-        return f'usuario_id = {self.id}, username = {self.username}'
+        return f'[Usuario] usuario_id = {self.id}, username = {self.username}'

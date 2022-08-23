@@ -53,4 +53,4 @@ class TipoCliente(BaseEntity):
 
     # tostring
     def __repr__(self):
-        return f'tipo_cliente_id = {self.id}, codigo = {self.codigo}, descripcion = {self.descripcion}'
+        return f'[TipoCliente] tipo_cliente_id = {self.id}, codigo = {self.codigo}, descripcion = {self.descripcion}'

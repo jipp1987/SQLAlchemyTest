@@ -1,7 +1,10 @@
+from typing import List
+
 from sqlalchemy import select, and_, or_
 from sqlalchemy.orm import aliased, contains_eager
 
 from core.dao.basedao import BaseDao
+from core.dao.daotools import FilterClause, EnumFilterTypes, JoinClause, EnumJoinTypes
 from impl.model.cliente import Cliente
 from impl.model.rol import Rol
 from impl.model.tipocliente import TipoCliente
@@ -35,6 +38,32 @@ class UsuarioRolDaoImpl(BaseDao):
 
     def __init__(self):
         super().__init__(table=UsuarioRol.__tablename__, entity_type=UsuarioRol)
+
+    def update_usuarios_roles_by_rol(self, rol: Rol, usuarios_asociados: List[Usuario]):
+        """
+        Actualiza los registros de usuarios_roles a partir del rol.
+        :param rol:
+        :param usuarios_asociados:
+        :return:
+        """
+        # Busco los roles asociados según el rol.
+        filters: List[FilterClause] = [FilterClause(field_name="rol.id", filter_type=EnumFilterTypes.EQUALS,
+                                                    object_to_compare=rol.id)]
+        joins: List[JoinClause] = [
+            JoinClause(field_name="rol", join_type=EnumJoinTypes.INNER_JOIN, is_join_with_fetch=True),
+            JoinClause(field_name="usuario", join_type=EnumJoinTypes.INNER_JOIN, is_join_with_fetch=True)
+        ]
+
+        usuarios_roles_old: List[UsuarioRol] = self.select(filter_clauses=filters, join_clauses=joins)
+        for ur in usuarios_roles_old:
+            print(ur)
+
+        # Preparo los nuevos usuarios_roles
+        usuarios_roles_new: List[UsuarioRol] = []
+
+        for ua in usuarios_asociados:
+            # usuarios_roles_new.append(UsuarioRol(rolid=rol.id, usuarioid=ua.id))
+            self.create(UsuarioRol(rolid=rol.id, usuarioid=ua.id))
 
 
 class ClienteDaoImpl(BaseDao):

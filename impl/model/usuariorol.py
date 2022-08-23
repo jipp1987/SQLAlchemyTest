@@ -1,4 +1,5 @@
 from sqlalchemy import Column, Integer, ForeignKey
+from sqlalchemy.orm import relationship
 
 from core.dao.modelutils import BaseEntity
 
@@ -11,16 +12,11 @@ class UsuarioRol(BaseEntity):
     rolid = Column(Integer, ForeignKey("roles.id"), primary_key=True)
     usuarioid = Column(Integer, ForeignKey("usuarios.id"), primary_key=True)
 
+    rol = relationship("Rol", backref="usuarios_asociados", foreign_keys=[rolid], lazy="raise")
+    usuario = relationship("Usuario", backref="roles_asociados", foreign_keys=[usuarioid], lazy="raise")
+
     def __init__(self, **kwargs):
         super(UsuarioRol, self).__init__(**kwargs)
-
-    @classmethod
-    def get_id_field_name(cls):
-        """
-        Devuelve el nombre del campo de la primary key.
-        :return: str
-        """
-        return "rol_id,usuario_id"
 
     def __eq__(self, other):
         if isinstance(other, self.__class__):
@@ -32,4 +28,4 @@ class UsuarioRol(BaseEntity):
         return not self.__eq__(other)
 
     def __repr__(self):
-        return f'rol_id = {self.rol_id}, usuario_id = {self.usuario_id}'
+        return f'[UsuarioRol] rolid = {self.rolid}, usuarioid = {self.usuarioid}'
