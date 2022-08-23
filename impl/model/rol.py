@@ -1,27 +1,25 @@
-from sqlalchemy import Column, Integer, String, Text
+from sqlalchemy import Column, Integer, String
 from sqlalchemy.orm import relationship
 
 from core.dao.modelutils import BaseEntity
 
 
-class Usuario(BaseEntity):
-    """Modelo de usuarios."""
+class Rol(BaseEntity):
+    """Modelo de roles."""
 
-    __tablename__ = 'usuarios'
+    __tablename__ = 'roles'
 
     # Mapeo de columnas de la base de datos
     id = Column(Integer, primary_key=True)
-    username = Column(String, nullable=False)
-    password = Column(Text, nullable=False)
+    nombre = Column(String(30), nullable=False)
 
     # Relación n a m de Usuarios-roles
-    roles = relationship("Rol", secondary="usuariosroles", back_populates="usuarios")
+    usuarios = relationship("Usuario", secondary="usuariosroles", back_populates="roles")
 
     # Constructor
     def __init__(self, **kwargs):
-        super(Usuario, self).__init__(**kwargs)
+        super(Rol, self).__init__(**kwargs)
 
-    # MÉTODOS
     @classmethod
     def get_id_field_name(cls):
         """
@@ -41,12 +39,11 @@ class Usuario(BaseEntity):
     def __ne__(self, other):
         return not self.__eq__(other)
 
-        # hashcode
-
+    # hashcode
     def __hash__(self):
         # En este caso uso el mismo atributo que para el hash
         return hash(self.id)
 
     # tostring
     def __repr__(self):
-        return f'usuario_id = {self.id}, username = {self.username}'
+        return f'id = {self.id}, nombre = {self.nombre}'

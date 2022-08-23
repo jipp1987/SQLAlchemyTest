@@ -3,8 +3,10 @@ from sqlalchemy.orm import aliased, contains_eager
 
 from core.dao.basedao import BaseDao
 from impl.model.cliente import Cliente
+from impl.model.rol import Rol
 from impl.model.tipocliente import TipoCliente
 from impl.model.usuario import Usuario
+from impl.model.usuariorol import UsuarioRol
 
 
 class TipoClienteDaoImpl(BaseDao):
@@ -19,6 +21,20 @@ class UsuarioDaoImpl(BaseDao):
 
     def __init__(self):
         super().__init__(table=Usuario.__tablename__, entity_type=Usuario)
+
+
+class RolDaoImpl(BaseDao):
+    """Implementación del DAO de usuarios."""
+
+    def __init__(self):
+        super().__init__(table=Rol.__tablename__, entity_type=Rol)
+
+
+class UsuarioRolDaoImpl(BaseDao):
+    """Implementación del DAO de usuarios."""
+
+    def __init__(self):
+        super().__init__(table=UsuarioRol.__tablename__, entity_type=UsuarioRol)
 
 
 class ClienteDaoImpl(BaseDao):

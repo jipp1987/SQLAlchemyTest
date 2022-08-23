@@ -2,12 +2,12 @@ from typing import List
 
 from core.dao.daotools import JoinClause, EnumJoinTypes, FieldClause, EnumAggregateFunctions, GroupByClause
 from core.service.service import BaseService, service_method, ServiceFactory
-from impl.dao.daoimpl import ClienteDaoImpl, TipoClienteDaoImpl, UsuarioDaoImpl
+from impl.dao.daoimpl import ClienteDaoImpl, TipoClienteDaoImpl, UsuarioDaoImpl, RolDaoImpl, UsuarioRolDaoImpl
 from impl.model.tipocliente import TipoCliente
 
 
 class ClienteServiceImpl(BaseService):
-    """Implementación del dao de clientes."""
+    """Implementación del service de clientes."""
 
     def __init__(self):
         super().__init__(dao=ClienteDaoImpl())
@@ -83,14 +83,28 @@ class ClienteServiceImpl(BaseService):
 
 
 class TipoClienteServiceImpl(BaseService):
-    """Implementación del dao de clientes."""
+    """Implementación del service de tipos de cliente."""
 
     def __init__(self):
         super().__init__(dao=TipoClienteDaoImpl())
 
 
 class UsuarioServiceImpl(BaseService):
-    """Implementación del dao de clientes."""
+    """Implementación del service de usuarios."""
 
     def __init__(self):
         super().__init__(dao=UsuarioDaoImpl())
+
+
+class RolServiceImpl(BaseService):
+    """Implementación del service de roles."""
+
+    def __init__(self):
+        super().__init__(dao=RolDaoImpl())
+
+
+class UsuarioRolServiceImpl(BaseService):
+    """Implementación del service de roles."""
+
+    def __init__(self):
+        super().__init__(dao=UsuarioRolDaoImpl())

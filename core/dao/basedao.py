@@ -110,7 +110,7 @@ class BaseDao(object, metaclass=abc.ABCMeta):
         cls.__session_maker = sessionmaker(bind=cls.__sqlalchemy_engine)
 
         # Esta línea lo que hace es forzar la creación de las tablas en la base de datos si no existieran. Se basa en
-        # las clases que heredad de BaseEntity.
+        # las clases que heredan de BaseEntity.
         BaseEntity.metadata.create_all(cls.__sqlalchemy_engine)
 
     @staticmethod
