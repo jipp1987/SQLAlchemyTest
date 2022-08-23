@@ -92,7 +92,7 @@ def create():
         service: BaseService = kwargs["service"]
 
         # Objeto query_object creado a partir del request_object
-        entity_to_be_created = deserialize_model(request_body.request_object, service.get_entity_type())
+        entity_to_be_created = deserialize_model(request_body.request_object, service.get_entity_type(), True)
         service.create(entity_to_be_created)
 
         json_result = f"'{entity_to_be_created}' has been created."

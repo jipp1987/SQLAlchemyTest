@@ -22,29 +22,33 @@ def find_entity_id_field_name(entity_type: type(BaseEntity)) -> str:
     return id_field_name
 
 
-def deserialize_model(model_dict: dict, entity_type: type(BaseEntity)) -> BaseEntity:
+def deserialize_model(model_dict: dict, entity_type: type(BaseEntity), is_set_relationships: bool = False) \
+        -> BaseEntity:
     """
     Convierte de diccionario a modelo de SQLAlchemy.
     :param model_dict: Diccionario json con los valores del objeto.
     :param entity_type: Tipo de entidad, heredando de BaseEntity.
+    :param is_set_relationships: Si True, respecto a las entidades anidadas sólo se fijará el valor de la
+    foreign key, no de la relación completa. OJO!!! En caso de True para entidades existentes (con id), sólo
+    está probado de momento para entidades cargadas por id, sin ningún tipo de relación cargada, sólo la foreign key.
     :return: Nueva entidad del tipo pasado como parámetro.
     """
     # Instancio una nueva entidad del tipo pasado como parámetro
     new_entity = entity_type()
-    set_model_properties_by_dict(model_dict=model_dict, entity=new_entity)
+    set_model_properties_by_dict(model_dict=model_dict, entity=new_entity, is_set_relationships=is_set_relationships)
 
     return new_entity
 
 
-def set_model_properties_by_dict(entity: BaseEntity, model_dict: dict, is_an_update: bool = False) -> None:
+def set_model_properties_by_dict(entity: BaseEntity, model_dict: dict, is_set_relationships: bool = False) -> None:
     """
     Establece las propiedades de una entidad a partir de un diccionario; las propiedades que no formen parte del
     diccionario se dejarán tal cual estén en la entidad.
     :param entity: Entidad a modificar.
     :param model_dict: Diccinoario de valores.
-    :param is_an_update: Si se están estableciendo los valores para un update, respecto a las entidades anidadas sólo
-    se fijará el valor de la foreign key, no de la relación completa. OJO!!! En caso de True, sólo está probado de
-    momento para entidades cargadas por id, sin ningún tipo de relación cargada, sólo la foreign key.
+    :param is_set_relationships: Si True, respecto a las entidades anidadas sólo se fijará el valor de la
+    foreign key, no de la relación completa. OJO!!! En caso de True para entidades existentes (con id), sólo
+    está probado de momento para entidades cargadas por id, sin ningún tipo de relación cargada, sólo la foreign key.
     :return: None
     """
     # Recorrer las columnas de la clase, ignorando por el momento las relaciones
@@ -79,7 +83,7 @@ def set_model_properties_by_dict(entity: BaseEntity, model_dict: dict, is_an_upd
                 if related_key:
                     # Si es para un update de una entidad existente, sólo me centro en las foreign keys sin ignorando
                     # las relaciones para evitar problemas de integridad.
-                    if is_an_update:
+                    if is_set_relationships:
                         # Busco en el diccionario la clave perteneciente al id de la entidad anidada.
                         # Si no lo encuentra lanzará un KeyError.
                         if model_dict[rel.key] is not None:
