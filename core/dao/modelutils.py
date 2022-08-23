@@ -2,6 +2,7 @@ from typing import Union
 
 from sqlalchemy import inspect
 from sqlalchemy.orm import declarative_base
+from sqlalchemy.util import symbol
 
 BaseEntity = declarative_base()
 """Declaración de clase para mapeo de todas la entidades de la base de datos."""
@@ -22,31 +23,31 @@ def find_entity_id_field_name(entity_type: type(BaseEntity)) -> str:
     return id_field_name
 
 
-def deserialize_model(model_dict: dict, entity_type: type(BaseEntity), is_set_relationships: bool = False) \
+def deserialize_model(model_dict: dict, entity_type: type(BaseEntity), only_set_foreign_key: bool = False) \
         -> BaseEntity:
     """
     Convierte de diccionario a modelo de SQLAlchemy.
     :param model_dict: Diccionario json con los valores del objeto.
     :param entity_type: Tipo de entidad, heredando de BaseEntity.
-    :param is_set_relationships: Si True, respecto a las entidades anidadas sólo se fijará el valor de la
+    :param only_set_foreign_key: Si True, respecto a las entidades anidadas sólo se fijará el valor de la
     foreign key, no de la relación completa. OJO!!! En caso de True para entidades existentes (con id), sólo
     está probado de momento para entidades cargadas por id, sin ningún tipo de relación cargada, sólo la foreign key.
     :return: Nueva entidad del tipo pasado como parámetro.
     """
     # Instancio una nueva entidad del tipo pasado como parámetro
     new_entity = entity_type()
-    set_model_properties_by_dict(model_dict=model_dict, entity=new_entity, is_set_relationships=is_set_relationships)
+    set_model_properties_by_dict(model_dict=model_dict, entity=new_entity, only_set_foreign_key=only_set_foreign_key)
 
     return new_entity
 
 
-def set_model_properties_by_dict(entity: BaseEntity, model_dict: dict, is_set_relationships: bool = False) -> None:
+def set_model_properties_by_dict(entity: BaseEntity, model_dict: dict, only_set_foreign_key: bool = False) -> None:
     """
     Establece las propiedades de una entidad a partir de un diccionario; las propiedades que no formen parte del
     diccionario se dejarán tal cual estén en la entidad.
     :param entity: Entidad a modificar.
     :param model_dict: Diccinoario de valores.
-    :param is_set_relationships: Si True, respecto a las entidades anidadas sólo se fijará el valor de la
+    :param only_set_foreign_key: Si True, respecto a las entidades anidadas sólo se fijará el valor de la
     foreign key, no de la relación completa. OJO!!! En caso de True para entidades existentes (con id), sólo
     está probado de momento para entidades cargadas por id, sin ningún tipo de relación cargada, sólo la foreign key.
     :return: None
@@ -54,6 +55,11 @@ def set_model_properties_by_dict(entity: BaseEntity, model_dict: dict, is_set_re
     # Recorrer las columnas de la clase, ignorando por el momento las relaciones
     entity_type: type(BaseEntity) = type(entity)
     columns = entity_type.__table__.columns
+
+    # Identifico si se trata de un update
+    # main_entity_id_field_name: str = find_entity_id_field_name(entity_type)
+    # main_entity_id = getattr(entity, main_entity_id_field_name)
+    # is_an_update: bool = main_entity_id is not None
 
     for column in columns:
         if column.name in model_dict:
@@ -69,42 +75,59 @@ def set_model_properties_by_dict(entity: BaseEntity, model_dict: dict, is_set_re
         nested_entity: BaseEntity
         nested_entity_id_field: str
         nested_entity_id: any
+        is_many_to_many: bool
+        entity_list: list
 
         for rel in relationships:
+            # Comprobar si es una relación many-many
+            is_many_to_many = rel.direction is not None and rel.direction == symbol("MANYTOMANY")
             related_key = None
             nested_entity_id_field = find_entity_id_field_name(rel.entity.class_)
 
             if rel.key in model_dict:
-                for lcl in rel.local_columns:
-                    # Buscar el nombre de la foreign_key para completar el dato
-                    related_key = ins.mapper.get_property_by_column(lcl).key
-                    break
-
-                if related_key:
-                    # Si es para un update de una entidad existente, sólo me centro en las foreign keys sin ignorando
-                    # las relaciones para evitar problemas de integridad.
-                    if is_set_relationships:
-                        # Busco en el diccionario la clave perteneciente al id de la entidad anidada.
-                        # Si no lo encuentra lanzará un KeyError.
-                        if model_dict[rel.key] is not None:
-                            nested_entity_id = model_dict[rel.key][nested_entity_id_field]
-                            # Establezco el valor únicamente de la foreign_key asociada a la relación
-                            setattr(entity, related_key, nested_entity_id)
-                        else:
-                            # Si llega como null es que quieren eliminar la relación
-                            setattr(entity, related_key, None)
+                # Si es una relación n-m, lo único que hago es completar una lista de entidades para tratar luego
+                # a nivel de servicio. Para evitar problemas, sólo voy a considerar relevante el dato si viene distinto
+                # de None; si la lista ha llegado vacía asumo que quieren eliminar toda relación.
+                if is_many_to_many and model_dict[rel.key] is not None:
+                    # Si viene con algún dato, voy añadiendo entidades.
+                    if model_dict[rel.key]:
+                        entity_list = getattr(entity, rel.key)
+                        for e in model_dict[rel.key]:
+                            entity_list.append(deserialize_model(e, rel.entity.class_))
                     else:
-                        # Llamo recursivamente a esta función para crear la entidad anidada
-                        if model_dict[rel.key] is not None:
-                            nested_entity = deserialize_model(model_dict[rel.key], rel.entity.class_)
-                            setattr(entity, rel.key, nested_entity)
-                            # Completo la columna de la foreign key: el valor es el que corresponde al id de la clase
-                            # anidada
-                            setattr(entity, related_key, getattr(nested_entity, nested_entity_id_field))
+                        # Si ha llegado como vacía, asumo que quieren eliminar las relaciones.
+                        setattr(entity, rel.key, None)
+                else:
+                    for lcl in rel.local_columns:
+                        # Buscar el nombre de la foreign_key para completar el dato
+                        related_key = ins.mapper.get_property_by_column(lcl).key
+                        break
+
+                    if related_key:
+                        # Si es para un update de una entidad existente, sólo me centro en las foreign keys sin
+                        # ignorando las relaciones para evitar problemas de integridad.
+                        if only_set_foreign_key:
+                            # Busco en el diccionario la clave perteneciente al id de la entidad anidada.
+                            # Si no lo encuentra lanzará un KeyError.
+                            if model_dict[rel.key] is not None:
+                                nested_entity_id = model_dict[rel.key][nested_entity_id_field]
+                                # Establezco el valor únicamente de la foreign_key asociada a la relación
+                                setattr(entity, related_key, nested_entity_id)
+                            else:
+                                # Si llega como null es que quieren eliminar la relación
+                                setattr(entity, related_key, None)
                         else:
-                            # Si ha llegado como None significa que quieren eliminar la relación.
-                            setattr(entity, rel.key, None)
-                            setattr(entity, related_key, None)
+                            # Llamo recursivamente a esta función para crear la entidad anidada
+                            if model_dict[rel.key] is not None:
+                                nested_entity = deserialize_model(model_dict[rel.key], rel.entity.class_)
+                                setattr(entity, rel.key, nested_entity)
+                                # Completo la columna de la foreign key: el valor es el que corresponde al id de la
+                                # clase anidada
+                                setattr(entity, related_key, getattr(nested_entity, nested_entity_id_field))
+                            else:
+                                # Si ha llegado como None significa que quieren eliminar la relación.
+                                setattr(entity, rel.key, None)
+                                setattr(entity, related_key, None)
 
 
 def serialize_model(model: BaseEntity) -> dict:

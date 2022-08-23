@@ -133,7 +133,7 @@ class BaseService(object, metaclass=ErrorHandler):
 
         # Modifico los datos enviados por parámetro en el diccionario, dejando el resto igual que estaban en la base de
         # datos.
-        set_model_properties_by_dict(model_dict=values_dict, entity=registry, is_an_update=True)
+        set_model_properties_by_dict(model_dict=values_dict, entity=registry, only_set_foreign_key=True)
 
         # Actualizar la entidad
         self.update(registry)

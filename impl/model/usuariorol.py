@@ -8,8 +8,8 @@ class UsuarioRol(BaseEntity):
 
     __tablename__ = "usuariosroles"
 
-    rol_id = Column(Integer, ForeignKey("roles.id"), primary_key=True)
-    usuario_id = Column(Integer, ForeignKey("usuarios.id"), primary_key=True)
+    rolid = Column(Integer, ForeignKey("roles.id"), primary_key=True)
+    usuarioid = Column(Integer, ForeignKey("usuarios.id"), primary_key=True)
 
     def __init__(self, **kwargs):
         super(UsuarioRol, self).__init__(**kwargs)

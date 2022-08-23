@@ -14,7 +14,7 @@ class Rol(BaseEntity):
     nombre = Column(String(30), nullable=False)
 
     # Relación n a m de Usuarios-roles
-    usuarios = relationship("Usuario", secondary="usuariosroles", back_populates="roles")
+    usuarios = relationship("Usuario", secondary="usuariosroles", back_populates="roles", lazy="raise")
 
     # Constructor
     def __init__(self, **kwargs):

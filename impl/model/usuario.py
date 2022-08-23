@@ -15,7 +15,7 @@ class Usuario(BaseEntity):
     password = Column(Text, nullable=False)
 
     # Relación n a m de Usuarios-roles
-    roles = relationship("Rol", secondary="usuariosroles", back_populates="usuarios")
+    roles = relationship("Rol", secondary="usuariosroles", back_populates="usuarios", lazy="raise")
 
     # Constructor
     def __init__(self, **kwargs):
