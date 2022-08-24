@@ -273,6 +273,16 @@ class BaseDao(object, metaclass=abc.ABCMeta):
         my_session.query(self.entity_type).filter(id_field == id_field_value).delete()
         my_session.flush()
 
+    def _execute_statement(self, stmt: expression):
+        """
+        Ejecuta un statement de SQLAlchemy Core.
+        :param stmt: Statement de SQLAlchemy Core.
+        :return: None
+        """
+        my_session = type(self).get_session_for_current_thread()
+        my_session.execute(stmt)
+        my_session.flush()
+
     def find_by_id(self, registry_id: any, join_clauses: List[JoinClause] = None) -> Union[BaseEntity, None]:
         """
         Devuelve un registro a partir de un id.

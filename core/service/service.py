@@ -1,7 +1,6 @@
 import types
 from typing import Callable, Dict, Type, List
 
-from core.dao.basedao import BaseDao
 from core.dao.daotools import FilterClause, JoinClause, OrderByClause, FieldClause, EnumAggregateFunctions, \
     GroupByClause
 from core.dao.modelutils import BaseEntity, set_model_properties_by_dict
@@ -29,7 +28,7 @@ class BaseService(object, metaclass=ErrorHandler):
     Clase abstracta de la que han de heredar el resto de servicios del programa.
     """
 
-    def __init__(self, dao: BaseDao = None):
+    def __init__(self, dao):
         """
         Constructor.
         :param dao: DAO.

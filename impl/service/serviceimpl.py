@@ -3,7 +3,9 @@ from typing import List
 
 from core.service.service import BaseService, service_method, ServiceFactory
 from impl.dao.daoimpl import ClienteDaoImpl, TipoClienteDaoImpl, UsuarioDaoImpl, RolDaoImpl, UsuarioRolDaoImpl
+from impl.model.rol import Rol
 from impl.model.usuario import Usuario
+from impl.model.usuariorol import UsuarioRol
 
 
 class ClienteServiceImpl(BaseService):
@@ -30,7 +32,7 @@ class UsuarioServiceImpl(BaseService):
 class RolServiceImpl(BaseService):
     """Implementación del service de roles."""
 
-    USUARIOS_ASOCIADOS_DICT_KEY = "usuarios"
+    USUARIOS_ASOCIADOS_DICT_KEY = "usuarios_asociados"
     """Clave para recuperar los usuarios asociados de un json string."""
 
     def __init__(self):
@@ -43,9 +45,15 @@ class RolServiceImpl(BaseService):
 
         if self.USUARIOS_ASOCIADOS_DICT_KEY in values_dict:
             usuarios_asociados: List[dict] = values_dict[self.USUARIOS_ASOCIADOS_DICT_KEY]
+            usuario_rol: UsuarioRol
 
             for u in usuarios_asociados:
-                usuarios_transient.append(Usuario(**u))
+                usuario_rol = UsuarioRol()
+                setattr(usuario_rol, "usuario", Usuario(**u["usuario"]))
+                setattr(usuario_rol, "usuarioid", usuario_rol.usuario.id)
+                setattr(usuario_rol, "rol", Rol(**u["rol"]))
+                setattr(usuario_rol, "rolid", usuario_rol.rol.id)
+                usuarios_transient.append(usuario_rol)
 
             # Elimino el valor del diccionario, lo trato individualmente en el update
             values_dict.pop(self.USUARIOS_ASOCIADOS_DICT_KEY)
@@ -84,9 +92,19 @@ class UsuarioRolServiceImpl(BaseService):
 
     @service_method
     def update_usuarios_roles_by_rol(self, rol, usuarios_asociados):
+        """
+        Actualiza los usuarios-roles por rol.
+        :param rol:
+        :param usuarios_asociados:
+        :return:
+        """
         return self._dao.update_usuarios_roles_by_rol(rol, usuarios_asociados)
 
     @service_method
     def find_by_rol_id(self, rol_id: int):
+        """
+        Encuentra los usuarios-roles asociados a un rol.
+        :param rol_id:
+        :return:
+        """
         return self._dao.find_by_rol_id(rol_id)
-

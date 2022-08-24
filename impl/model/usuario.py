@@ -48,4 +48,4 @@ class Usuario(BaseEntity):
 
     # tostring
     def __repr__(self):
-        return f'[Usuario] usuario_id = {self.id}, username = {self.username}'
+        return f'[Usuario] id = {self.id}, username = {self.username}'

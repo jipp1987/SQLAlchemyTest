@@ -1,7 +1,8 @@
 from typing import List
 
-from sqlalchemy import select, and_, or_
+from sqlalchemy import select, and_, or_, delete, insert
 from sqlalchemy.orm import aliased, contains_eager
+from sqlalchemy.sql import expression
 
 from core.dao.basedao import BaseDao
 from core.dao.daotools import FilterClause, EnumFilterTypes, JoinClause, EnumJoinTypes
@@ -51,7 +52,28 @@ class UsuarioRolDaoImpl(BaseDao):
 
         return self.select(filter_clauses=filters, join_clauses=join_clauses)
 
-    def update_usuarios_roles_by_rol(self, rol: Rol, usuarios_asociados: List[Usuario]):
+    def delete(self, registry: UsuarioRol):
+        """
+        Sobrescritura de delete.
+        :param registry:
+        :return:
+        """
+        # Como la primary key es compuesta, no puedo utilizar la función genérica porque asume que sólo hay una
+        # primary key; lo que hago es ejecutar una expresión.
+        stmt: expression = delete(UsuarioRol).where(UsuarioRol.rolid == registry.rolid).\
+            where(UsuarioRol.usuarioid == registry.usuarioid)
+        self._execute_statement(stmt)
+
+    def create(self, registry: UsuarioRol):
+        """
+        Sobrescritura de delete.
+        :param registry:
+        :return:
+        """
+        stmt: expression = insert(UsuarioRol).values(usuarioid=registry.usuarioid, rolid=registry.rolid)
+        self._execute_statement(stmt)
+
+    def update_usuarios_roles_by_rol(self, rol: Rol, usuarios_asociados: List[UsuarioRol]):
         """
         Actualiza los registros de usuarios_roles a partir del rol.
         :param rol:
@@ -60,15 +82,28 @@ class UsuarioRolDaoImpl(BaseDao):
         """
         usuarios_roles_old: List[UsuarioRol] = self.find_by_rol_id(rol.id)
 
-        for ur in usuarios_roles_old:
-            print(ur)
+        # Comparo listas para saber qué debo eliminar o crear
+        is_exists: bool
 
-        # Preparo los nuevos usuarios_roles
-        usuarios_roles_new: List[UsuarioRol] = []
+        for u in usuarios_roles_old:
+            is_exists = False
+            for u_new in usuarios_asociados:
+                if u == u_new:
+                    is_exists = True
+                    break
 
-        for ua in usuarios_asociados:
-            # usuarios_roles_new.append(UsuarioRol(rolid=rol.id, usuarioid=ua.id))
-            self.create(UsuarioRol(rolid=rol.id, usuarioid=ua.id))
+            if not is_exists:
+                self.delete(u)
+
+        for u_new in usuarios_asociados:
+            is_exists = False
+            for u in usuarios_roles_old:
+                if u == u_new:
+                    is_exists = True
+                    break
+
+            if not is_exists:
+                self.create(u_new)
 
 
 class ClienteDaoImpl(BaseDao):

@@ -20,7 +20,7 @@ class UsuarioRol(BaseEntity):
 
     def __eq__(self, other):
         if isinstance(other, self.__class__):
-            return self.rol_id == other.rol_id and self.usuario_id == other.usuario_id
+            return self.rolid == other.rolid and self.usuarioid == other.usuarioid
         else:
             return False
 
