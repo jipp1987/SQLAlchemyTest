@@ -109,26 +109,30 @@ class BaseService(object, metaclass=ErrorHandler):
         self._dao.create(registry)
 
     @service_method
-    def update(self, registry: BaseEntity, many_to_many_updates: dict = None) -> None: # noqa
+    def update(self, registry: BaseEntity) -> None:
         """
         Modifica una entidad en la base de datos. Modifica la entidad al completo, tal y como llega en el parámetro.
         :param registry: Registro a modificar.
-        :param many_to_many_updates: Diccionario opcional para actualizar relaciones many to many asociadas
-        a la entidad.
         :return: None
         """
         self._dao.update(registry)
 
     @service_method
-    def update_fields(self, registry_id: any, values_dict: dict, many_to_many_updates: dict = None) -> BaseEntity:
+    def update_fields(self, registry_id: any, values_dict: dict) -> BaseEntity:
         """
         Modifica los campos de la entidad que son enviados en el diccionario de valores.
         :param registry_id: Id del registro a modificar.
         :param values_dict: Diccionario de valores a actualizar.
-        :param many_to_many_updates: Diccionario opcional para actualizar relaciones many to many asociadas
-        a la entidad.
         :return: None
         """
+        registry = self._prepare_entity_for_update_fields(registry_id, values_dict)
+
+        # Actualizar la entidad
+        self.update(registry)
+
+        return registry
+
+    def _prepare_entity_for_update_fields(self, registry_id: any, values_dict: dict) -> BaseEntity:
         # Busco la entidad a modificar por id.
         registry = self.find_by_id(registry_id)
         if registry is None:
@@ -138,9 +142,6 @@ class BaseService(object, metaclass=ErrorHandler):
         # Modifico los datos enviados por parámetro en el diccionario, dejando el resto igual que estaban en la base de
         # datos.
         set_model_properties_by_dict(model_dict=values_dict, entity=registry, only_set_foreign_key=True)
-
-        # Actualizar la entidad
-        self.update(registry, many_to_many_updates)
 
         return registry
 

@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String
+from sqlalchemy import Column, Integer, String, orm
 
 from core.dao.modelutils import BaseEntity
 
@@ -18,6 +18,12 @@ class Rol(BaseEntity):
     # Constructor
     def __init__(self, **kwargs):
         super(Rol, self).__init__(**kwargs)
+        self.usuarios_transient = []
+
+    # Esto lo necesito para que funcione el campo transient
+    @orm.reconstructor
+    def init_on_load(self):
+        self.usuarios_transient = []
 
     @classmethod
     def get_id_field_name(cls):

@@ -39,6 +39,18 @@ class UsuarioRolDaoImpl(BaseDao):
     def __init__(self):
         super().__init__(table=UsuarioRol.__tablename__, entity_type=UsuarioRol)
 
+    def find_by_rol_id(self, rol_id: int):
+        join_clauses: List[JoinClause] = [
+            JoinClause("rol", EnumJoinTypes.INNER_JOIN),
+            JoinClause("usuario", EnumJoinTypes.INNER_JOIN)
+        ]
+
+        filters: List[FilterClause] = [
+            FilterClause(field_name="rol.id", filter_type=EnumFilterTypes.EQUALS, object_to_compare=rol_id)
+        ]
+
+        return self.select(filter_clauses=filters, join_clauses=join_clauses)
+
     def update_usuarios_roles_by_rol(self, rol: Rol, usuarios_asociados: List[Usuario]):
         """
         Actualiza los registros de usuarios_roles a partir del rol.
@@ -46,15 +58,8 @@ class UsuarioRolDaoImpl(BaseDao):
         :param usuarios_asociados:
         :return:
         """
-        # Busco los roles asociados según el rol.
-        filters: List[FilterClause] = [FilterClause(field_name="rol.id", filter_type=EnumFilterTypes.EQUALS,
-                                                    object_to_compare=rol.id)]
-        joins: List[JoinClause] = [
-            JoinClause(field_name="rol", join_type=EnumJoinTypes.INNER_JOIN, is_join_with_fetch=True),
-            JoinClause(field_name="usuario", join_type=EnumJoinTypes.INNER_JOIN, is_join_with_fetch=True)
-        ]
+        usuarios_roles_old: List[UsuarioRol] = self.find_by_rol_id(rol.id)
 
-        usuarios_roles_old: List[UsuarioRol] = self.select(filter_clauses=filters, join_clauses=joins)
         for ur in usuarios_roles_old:
             print(ur)
 
