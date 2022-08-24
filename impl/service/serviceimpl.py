@@ -1,10 +1,9 @@
 from copy import deepcopy
 from typing import List
 
+from core.dao.modelutils import deserialize_model
 from core.service.service import BaseService, service_method, ServiceFactory
 from impl.dao.daoimpl import ClienteDaoImpl, TipoClienteDaoImpl, UsuarioDaoImpl, RolDaoImpl, UsuarioRolDaoImpl
-from impl.model.rol import Rol
-from impl.model.usuario import Usuario
 from impl.model.usuariorol import UsuarioRol
 
 
@@ -48,12 +47,7 @@ class RolServiceImpl(BaseService):
             usuario_rol: UsuarioRol
 
             for u in usuarios_asociados:
-                usuario_rol = UsuarioRol()
-                setattr(usuario_rol, "usuario", Usuario(**u["usuario"]))
-                setattr(usuario_rol, "usuarioid", usuario_rol.usuario.id)
-                setattr(usuario_rol, "rol", Rol(**u["rol"]))
-                setattr(usuario_rol, "rolid", usuario_rol.rol.id)
-                usuarios_transient.append(usuario_rol)
+                usuarios_transient.append(deserialize_model(u, UsuarioRol))
 
             # Elimino el valor del diccionario, lo trato individualmente en el update
             values_dict.pop(self.USUARIOS_ASOCIADOS_DICT_KEY)

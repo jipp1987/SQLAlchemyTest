@@ -56,11 +56,6 @@ def set_model_properties_by_dict(entity: BaseEntity, model_dict: dict, only_set_
     entity_type: type(BaseEntity) = type(entity)
     columns = entity_type.__table__.columns
 
-    # Identifico si se trata de un update
-    # main_entity_id_field_name: str = find_entity_id_field_name(entity_type)
-    # main_entity_id = getattr(entity, main_entity_id_field_name)
-    # is_an_update: bool = main_entity_id is not None
-
     for column in columns:
         if column.name in model_dict:
             setattr(entity, column.name, model_dict[column.name])
@@ -73,20 +68,22 @@ def set_model_properties_by_dict(entity: BaseEntity, model_dict: dict, only_set_
 
         related_key: Union[str, None]
         nested_entity: BaseEntity
-        nested_entity_id_field: str
-        nested_entity_id: any
+        nested_entity_id_field: Union[str, List[str]]
+        nested_entity_id: Union[int, dict]
+        is_many_to_many: bool
         is_one_to_many: bool
         entity_list: list
 
         for rel in relationships:
-            # Comprobar si es una relación many-many
+            # Comprobar si es una relación many-many o one-to-many
+            is_many_to_many = rel.direction is not None and rel.direction == symbol("MANYTOMANY")
             is_one_to_many = rel.direction is not None and rel.direction == symbol("ONETOMANY")
-            # Una relación onetomany significa que es la entidad base la que está referenciada en otra tabla:
-            # ignoro este caso
-            if is_one_to_many:
+            if is_many_to_many or is_one_to_many:
                 continue
 
             related_key = None
+            # Esto puede devolver una lista si es una entidad compuesta, pero no llegará a pasar porque ya estoy
+            # comprobando el tipo de relación antes
             nested_entity_id_field = find_entity_id_field_name(rel.entity.class_)
 
             if rel.key in model_dict:
