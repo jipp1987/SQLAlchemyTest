@@ -129,7 +129,7 @@ def update():
         # utilizar un rest service para modificar sus datos, deberían venir siempre como dato adicional de una
         # tabla principal
         if isinstance(id_field_name, list):
-            raise RuntimeError(f"Entity type {service.get_entity_type().__name__} not allowed for direct update.")
+            raise ValueError(f"Entity type {service.get_entity_type().__name__} not allowed for direct update.")
 
         if id_field_name in request_body.request_object:
             entity_id = request_body.request_object[id_field_name]

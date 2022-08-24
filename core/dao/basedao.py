@@ -186,10 +186,11 @@ class BaseDao(object, metaclass=abc.ABCMeta):
         # Eliminar sesión del mapa
         cls.__thread_session_dict.pop(cls.__get_current_thread())
 
-    def get_entity_id_field_name(self):
+    def get_entity_id_field_name(self) -> Union[str, List[str]]:
         """
         Devuelve el nombre del campo id de la entidad principal asociada al dao.
-        :return: str
+        :return: Puede devolver un string con el nombre del campo id, o una lista de strings para entidades con más
+        de una primary-key.
         """
         return find_entity_id_field_name(self.entity_type)
 
