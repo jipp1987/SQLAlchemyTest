@@ -1,4 +1,4 @@
-from typing import Union
+from typing import Union, List
 
 from sqlalchemy import inspect
 from sqlalchemy.orm import declarative_base
@@ -8,21 +8,19 @@ BaseEntity = declarative_base()
 """Declaración de clase para mapeo de todas la entidades de la base de datos."""
 
 
-def find_entity_id_field_name(entity_type: type(BaseEntity)) -> str:
+def find_entity_id_field_name(entity_type: type(BaseEntity)) -> Union[str, List[str]]:
     """
-    Devuelve el nombre del campo id de la entidad principal asociada al dao.
+    Devuelve el nombre del campo de la clave primaria de la entidad. Puede devolver un listado de strings si
+    tuviese más de una, como por ejemplo el caso de los modelos de relaciones n a m.
     :param entity_type: Tipo de la entidad, siempre y cuando herede de BaseEntity.
-    :return: Nombre del campo id de la entidad.
+    :return: Nombre del campo id de la entidad, o un listado de strings para el caso de entidades con más de una pk.
     """
-    id_field_name: str = "id"
+    primary_keys = [key.name for key in inspect(entity_type).primary_key]
 
-    if hasattr(entity_type, "get_id_field_name"):
-        id_field_name_fn = getattr(entity_type, "get_id_field_name")
+    if primary_keys is None:
+        raise RuntimeError(f"Entity {entity_type.__name__} does not have a primary key defined.")
 
-        if id_field_name_fn is not None:
-            id_field_name = id_field_name_fn()
-
-    return id_field_name
+    return primary_keys[0] if len(primary_keys) == 1 else primary_keys
 
 
 def deserialize_model(model_dict: dict, entity_type: type(BaseEntity), only_set_foreign_key: bool = False) \

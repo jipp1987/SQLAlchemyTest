@@ -164,10 +164,6 @@ class BaseService(object, metaclass=ErrorHandler):
         return self._dao.find_by_id(registry_id, join_clauses)
 
     @service_method
-    def find_last_entity(self) -> BaseEntity:
-        return self._dao.find_last_entity()
-
-    @service_method
     def select(self, filter_clauses: List[FilterClause] = None, join_clauses: List[JoinClause] = None,
                order_by_clauses: List[OrderByClause] = None, limit: int = None, offset: int = None):
         """
@@ -250,7 +246,7 @@ class ServiceFactory(object):
 
         # Si no existe, la creo y la almaceno en el diccionario
         if class_name not in cls.__services:
-            cls.__services[class_name] = class_to_instanciate()
+            cls.__services[class_name] = class_to_instanciate() # noqa
 
         # devuelvo la instancia del diccionario
         return cls.__services[class_name]

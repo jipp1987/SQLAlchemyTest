@@ -1,8 +1,7 @@
 from typing import List
 
-from sqlalchemy import select, and_, or_, delete, insert
+from sqlalchemy import select, and_, or_
 from sqlalchemy.orm import aliased, contains_eager
-from sqlalchemy.sql import expression
 
 from core.dao.basedao import BaseDao
 from core.dao.daotools import FilterClause, EnumFilterTypes, JoinClause, EnumJoinTypes
@@ -51,27 +50,6 @@ class UsuarioRolDaoImpl(BaseDao):
         ]
 
         return self.select(filter_clauses=filters, join_clauses=join_clauses)
-
-    def delete(self, registry: UsuarioRol):
-        """
-        Sobrescritura de delete.
-        :param registry:
-        :return:
-        """
-        # Como la primary key es compuesta, no puedo utilizar la función genérica porque asume que sólo hay una
-        # primary key; lo que hago es ejecutar una expresión.
-        stmt: expression = delete(UsuarioRol).where(UsuarioRol.rolid == registry.rolid).\
-            where(UsuarioRol.usuarioid == registry.usuarioid)
-        self._execute_statement(stmt)
-
-    def create(self, registry: UsuarioRol):
-        """
-        Sobrescritura de delete.
-        :param registry:
-        :return:
-        """
-        stmt: expression = insert(UsuarioRol).values(usuarioid=registry.usuarioid, rolid=registry.rolid)
-        self._execute_statement(stmt)
 
     def update_usuarios_roles_by_rol(self, rol: Rol, usuarios_asociados: List[UsuarioRol]):
         """

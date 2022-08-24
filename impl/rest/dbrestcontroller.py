@@ -1,7 +1,7 @@
 import sys
 import traceback
 from functools import wraps
-from typing import List
+from typing import List, Union
 
 from flask import Blueprint, make_response, request
 
@@ -122,8 +122,14 @@ def update():
         service: BaseService = kwargs["service"]
 
         # Recupero el id de la entidad del diccionario de valores.
-        id_field_name: str = find_entity_id_field_name(service.get_entity_type())
+        id_field_name: Union[str, list] = find_entity_id_field_name(service.get_entity_type())
         entity_id: any
+
+        # Si el id field es un listado significa que es una tabla con más de una clave primaria y no debería pasar
+        # utilizar un rest service para modificar sus datos, deberían venir siempre como dato adicional de una
+        # tabla principal
+        if isinstance(id_field_name, list):
+            raise RuntimeError(f"Entity type {service.get_entity_type().__name__} not allowed for direct update.")
 
         if id_field_name in request_body.request_object:
             entity_id = request_body.request_object[id_field_name]

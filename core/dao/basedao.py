@@ -6,7 +6,7 @@ from copy import deepcopy
 from dataclasses import dataclass
 from typing import Dict, List, Union, Tuple
 
-from sqlalchemy import create_engine, select, and_, or_, inspect, func
+from sqlalchemy import create_engine, select, and_, or_, inspect, func, insert, delete
 from sqlalchemy.engine import Engine
 from sqlalchemy.orm import sessionmaker, contains_eager, aliased
 from sqlalchemy.sql import expression
@@ -202,20 +202,30 @@ class BaseDao(object, metaclass=abc.ABCMeta):
         """
         my_session = type(self).get_session_for_current_thread()
 
-        # Hago una copia del objeto tal cual está actualmente
-        registry_to_create = deepcopy(registry)
+        # En función de si id_field_name es una lista de strings (caso de relaciones n a m) o sólo un string
+        # (entidades normales) elaboro el insert de forma diferente.
+        id_field_name: Union[List[str], str] = self.get_entity_id_field_name()
+        if isinstance(id_field_name, list):
+            # Elaboro un diccionario siendo la clave el nombre del campo y el valor el actual del registro respecto
+            # esa primary key
+            values: dict = {}
+            for pk in id_field_name:
+                values[pk] = getattr(registry, pk)
 
-        # Ejecutar consulta
-        my_session.add(registry_to_create)
-        # Importante hacer flush para que se refleje el cambio en la propia transacción (sin llegar a hacer commit
-        # en la db)
-        my_session.flush()
+            # Statement a ejecutar
+            stmt: expression = insert(type(registry)).values(**values)
+            my_session.execute(stmt)
+            my_session.flush()
+        else:
+            # Hago una copia del objeto tal cual está actualmente
+            registry_to_create = deepcopy(registry)
 
-        # Recuperar el último registro para obtener el id asignado y establecerlo como el id de la entidad pasada como
-        # parámetro
-        id_field_name = self.get_entity_id_field_name()
+            # Ejecutar consulta
+            my_session.add(registry_to_create)
+            # Importante hacer flush para que se refleje el cambio en la propia transacción (sin llegar a hacer commit
+            # en la db)
+            my_session.flush()
 
-        if hasattr(registry_to_create, id_field_name):
             id_field = getattr(registry_to_create, id_field_name)
             # Establecer el valor del id en el registro pasado como parámetro
             setattr(registry, id_field_name, id_field)
@@ -243,20 +253,6 @@ class BaseDao(object, metaclass=abc.ABCMeta):
         my_session.flush()
         my_session.expunge_all()
 
-    def find_last_entity(self) -> BaseEntity:
-        """
-        Devuelve el último registro introducido en la tabla principal del DAO.
-        :return: BaseEntiity
-        """
-        my_session = type(self).get_session_for_current_thread()
-
-        # Recuperar el último registro para obtener el id asignado y establecerlo como el id de la entidad pasada como
-        # parámetro
-        id_field_name = self.get_entity_id_field_name()
-        id_field = getattr(self.entity_type, id_field_name)
-
-        return my_session.query(self.entity_type).order_by(id_field.desc()).first()
-
     def delete(self, registry: BaseEntity):
         """
         Elimina un registro por id.
@@ -265,12 +261,23 @@ class BaseDao(object, metaclass=abc.ABCMeta):
         """
         my_session = type(self).get_session_for_current_thread()
 
-        # Buscar método para obtener el id
-        id_field_name: str = self.get_entity_id_field_name()
-        id_field_value = getattr(registry, id_field_name)
-        id_field = getattr(type(registry), id_field_name)
+        # Id de la entidad para determinar la forma de afrontar el delete: si es una pk compuesta como las de las
+        # relaciones n a m, o única de tabla normal
+        id_field_name: Union[str, List[str]] = self.get_entity_id_field_name()
 
-        my_session.query(self.entity_type).filter(id_field == id_field_value).delete()
+        if isinstance(id_field_name, list):
+            # Construyo una expresión delete where
+            stmt: expression = delete(type(registry))
+            for pk in id_field_name:
+                # where(entity_class.pk_field == pk_value)
+                stmt = stmt.where(getattr(type(registry), pk) == getattr(registry, pk))
+
+            my_session.execute(stmt)
+        else:
+            id_field_value = getattr(registry, id_field_name)
+            id_field = getattr(type(registry), id_field_name)
+            my_session.query(self.entity_type).filter(id_field == id_field_value).delete()
+
         my_session.flush()
 
     def _execute_statement(self, stmt: expression):
@@ -292,8 +299,6 @@ class BaseDao(object, metaclass=abc.ABCMeta):
         """
         entity: Union[BaseEntity, None] = None
 
-        # my_session = type(self).get_session_for_current_thread()
-        # result = my_session.query(self.entity_type).get(registry_id)
         filters: List[FilterClause] = [FilterClause(field_name=self.get_entity_id_field_name(),
                                                     filter_type=EnumFilterTypes.EQUALS, object_to_compare=registry_id)]
         result = self.__select(join_clauses=join_clauses, filter_clauses=filters)
