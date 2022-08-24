@@ -239,8 +239,19 @@ class BaseDao(object, metaclass=abc.ABCMeta):
         my_session = type(self).get_session_for_current_thread()
 
         # Busco el elemento en la base de datos
-        id_field_name = self.get_entity_id_field_name()
-        registry_in_db = self.find_by_id(getattr(registry, id_field_name))
+        registry_in_db: BaseEntity
+        id_field_name: Union[str, List[str]] = self.get_entity_id_field_name()
+
+        # Si es una lista, es una entidad con múltiples foreign-keys como una relación n a m
+        if isinstance(id_field_name, list):
+            # utilizo una query del orm basándome en un diccionario de datos de la foreign-key
+            values: dict = {}
+            for pk in id_field_name:
+                values[pk] = getattr(registry, pk)
+
+            registry_in_db = my_session.query(self.entity_type).filter(**values).one()
+        else:
+            registry_in_db = self.find_by_id(getattr(registry, id_field_name))
 
         # Recorro la lista de atributos del objeto y se los cambio por el enviado como parámetro
         # Recupero el tipo de campo para tratar ciertos filtros especiales, como las fechas
@@ -290,18 +301,32 @@ class BaseDao(object, metaclass=abc.ABCMeta):
         my_session.execute(stmt)
         my_session.flush()
 
-    def find_by_id(self, registry_id: any, join_clauses: List[JoinClause] = None) -> Union[BaseEntity, None]:
+    def find_by_id(self, registry_id: Union[int, dict], join_clauses: List[JoinClause] = None) \
+            -> Union[BaseEntity, None]:
         """
         Devuelve un registro a partir de un id.
-        :param registry_id: Id del registro en la base de datos.
+        :param registry_id: Id del registro en la base de datos. Puede ser un entero o un diccionario para el caso de
+        entidades con múltiples primary-keys como es el caso de las relaciones n a m. Si es un diccionario, la clave
+        debe ser el nombre del campo pk y el valor el que se desee consultar.
         :param join_clauses: Cláusulas join.
         :return: Una instancia de la clase principal del dao si el registro exite; None si no existe.
         """
         entity: Union[BaseEntity, None] = None
+        filters: List[FilterClause]
 
-        filters: List[FilterClause] = [FilterClause(field_name=self.get_entity_id_field_name(),
-                                                    filter_type=EnumFilterTypes.EQUALS, object_to_compare=registry_id)]
+        if isinstance(registry_id, dict):
+            filters = []
+            # En el caso de múltiples pks, creo tantos filterclauses como claves haya
+            for key, value in registry_id.items():
+                filters.append(FilterClause(field_name=key, filter_type=EnumFilterTypes.EQUALS,
+                                            object_to_compare=value))
+        else:
+            filters = [FilterClause(field_name=self.get_entity_id_field_name(),
+                                    filter_type=EnumFilterTypes.EQUALS,
+                                    object_to_compare=registry_id)]
+
         result = self.__select(join_clauses=join_clauses, filter_clauses=filters)
+
         if result:
             entity = result[0]
 
