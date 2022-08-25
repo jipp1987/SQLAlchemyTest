@@ -333,6 +333,39 @@ class BaseDao(object, metaclass=abc.ABCMeta):
 
         return entity
 
+    def _update_many_to_many(self, many_to_many_old: List[BaseEntity], many_to_many_new: List[BaseEntity]) -> None:
+        """
+        Compara listas de una relación n a m del mismo tipo de entidad para saber si debe crear nuevos registros
+        y/o eliminar registros que ya no están presentes.
+        :param many_to_many_old: Lista de entidades many to many anterior, normalmente consultada en la base de datos.
+        :param many_to_many_new: Nueva lista de entidades many to many anterior, normalmente consultada en la base de datos.
+        :return: None
+        """
+        # Comparo listas para saber qué debo eliminar o crear
+        is_exists: bool
+
+        if many_to_many_old:
+            for u in many_to_many_old:
+                is_exists = False
+                for u_new in many_to_many_new:
+                    if u == u_new:
+                        is_exists = True
+                        break
+
+                if not is_exists:
+                    self.delete(u)
+
+        for u_new in many_to_many_new:
+            is_exists = False
+            if many_to_many_old:
+                for u in many_to_many_old:
+                    if u == u_new:
+                        is_exists = True
+                        break
+
+            if not is_exists:
+                self.create(u_new)
+
     # SELECT
     def select(self, filter_clauses: List[FilterClause] = None, join_clauses: List[JoinClause] = None,
                order_by_clauses: List[OrderByClause] = None, limit: int = None, offset: int = None) \

@@ -59,29 +59,7 @@ class UsuarioRolDaoImpl(BaseDao):
         :return:
         """
         usuarios_roles_old: List[UsuarioRol] = self.find_by_rol_id(rol.id)
-
-        # Comparo listas para saber qué debo eliminar o crear
-        is_exists: bool
-
-        for u in usuarios_roles_old:
-            is_exists = False
-            for u_new in usuarios_asociados:
-                if u == u_new:
-                    is_exists = True
-                    break
-
-            if not is_exists:
-                self.delete(u)
-
-        for u_new in usuarios_asociados:
-            is_exists = False
-            for u in usuarios_roles_old:
-                if u == u_new:
-                    is_exists = True
-                    break
-
-            if not is_exists:
-                self.create(u_new)
+        self._update_many_to_many(many_to_many_old=usuarios_roles_old, many_to_many_new=usuarios_asociados)
 
 
 class ClienteDaoImpl(BaseDao):
