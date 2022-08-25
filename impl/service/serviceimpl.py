@@ -40,20 +40,19 @@ class RolServiceImpl(BaseService):
     @service_method
     def update_fields(self, registry_id: any, values_dict: dict):
         # Sobrescritura para recuperar del json los usuarios asociados al rol.
-        usuarios_transient = []
+        usuarios_roles = []
 
         if self.USUARIOS_ASOCIADOS_DICT_KEY in values_dict:
             usuarios_asociados: List[dict] = values_dict[self.USUARIOS_ASOCIADOS_DICT_KEY]
-            usuario_rol: UsuarioRol
 
             for u in usuarios_asociados:
-                usuarios_transient.append(deserialize_model(u, UsuarioRol))
+                usuarios_roles.append(deserialize_model(u, UsuarioRol))
 
             # Elimino el valor del diccionario, lo trato individualmente en el update
             values_dict.pop(self.USUARIOS_ASOCIADOS_DICT_KEY)
 
         registry = self._prepare_entity_for_update_fields(registry_id, values_dict)
-        registry.usuarios_transient = usuarios_transient
+        registry.usuarios_roles = usuarios_roles
 
         self.update(registry)
 
@@ -67,7 +66,7 @@ class RolServiceImpl(BaseService):
         :return: None
         """
         # Hago una copia de los usuarios asociados y vacío la lista para evitar problemas.
-        usuarios_roles: list = deepcopy(registry.usuarios_transient)
+        usuarios_roles: list = deepcopy(registry.usuarios_roles)
         registry.usuarios_transient = []
 
         self._dao.update(registry)

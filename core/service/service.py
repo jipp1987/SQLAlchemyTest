@@ -201,8 +201,8 @@ class BaseService(object, metaclass=ErrorHandler):
                                        group_by_clauses=group_by_clauses, limit=limit, offset=offset)
 
     @service_method
-    def count_by_filtered_query(self, filter_clauses: List[FilterClause] = None, join_clauses: List[JoinClause] = None) \
-            -> int:
+    def count_by_filtered_query(self, filter_clauses: List[FilterClause] = None,
+                                join_clauses: List[JoinClause] = None) -> int:
         """
         Cuenta el número de registros de una tabla, pudiendo añadir filtros opcionales.
         :param filter_clauses: Filtros opcionales.

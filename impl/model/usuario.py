@@ -1,4 +1,5 @@
 from sqlalchemy import Column, Integer, String, Text
+from sqlalchemy.orm import relationship
 
 from core.dao.modelutils import BaseEntity
 
@@ -13,8 +14,9 @@ class Usuario(BaseEntity):
     username = Column(String, nullable=False)
     password = Column(Text, nullable=False)
 
-    # Relación n a m de Usuarios-roles
-    # roles = relationship("Rol", secondary="usuariosroles", back_populates="usuarios", lazy="raise")
+    # Relación n a m de Usuarios-roles. Utilizo noload porque quiero que este objeto sea estrictamente de escritura,
+    # lo completo yo a nivel de servicio.
+    usuarios_roles = relationship("UsuarioRol", back_populates="usuario", lazy="noload")
 
     # Constructor
     def __init__(self, **kwargs):
