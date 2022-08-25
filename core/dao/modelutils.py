@@ -151,8 +151,26 @@ def serialize_model(model: BaseEntity) -> dict:
         # Este diccionario es para devolver algo en las entidades lazy, el id por lo menos aunque el resto no
         # esté definido
         lazyload_dict: dict
+        is_many_to_many: bool
+        is_one_to_many: bool
 
         for rel in relationships:
+            # Comprobar si es una relación many-many o one-to-many
+            is_many_to_many = rel.direction is not None and rel.direction == symbol("MANYTOMANY")
+            is_one_to_many = rel.direction is not None and rel.direction == symbol("ONETOMANY")
+
+            # Si es una relación one_to_many o mm, es un listado de objetos. Añadimos un diccionario por cada
+            # elemento contenido.
+            if is_many_to_many or is_one_to_many:
+                attr = getattr(model, rel.key)
+
+                if attr:
+                    json_dict[rel.key] = []
+                    for i in attr:
+                        json_dict[rel.key].append(serialize_model(i))
+
+                continue
+
             # Si no está en el set de propiedades no cargadas, la guardo en el diccionario con todos los atributos
             # que tenga
             if rel.key not in ins.unloaded:
@@ -171,6 +189,9 @@ def serialize_model(model: BaseEntity) -> dict:
                     if local_key in foreign_key_names:
                         attr = getattr(model, local_key)
                         # Creo un diccionario con al menos el id de la entidad y lo añado al json_dict
+                        # OJO!!! NO debería llegar nada aquí con más de una clave primaria, find_entity_id_field_name
+                        # puede devolver una lista de strings pero no debería llegar hasta aquí ese caso porque ya estoy
+                        # controlando las entidades many to many.
                         lazyload_dict = {find_entity_id_field_name(rel.mapper.class_): attr}
                         json_dict[rel.key] = lazyload_dict if attr is not None else None
                         break

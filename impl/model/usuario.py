@@ -16,7 +16,7 @@ class Usuario(BaseEntity):
 
     # Relación n a m de Usuarios-roles. Utilizo noload porque quiero que este objeto sea estrictamente de escritura,
     # lo completo yo a nivel de servicio.
-    usuarios_roles = relationship("UsuarioRol", back_populates="usuario", lazy="noload")
+    usuarios_roles = relationship("UsuarioRol", lazy="noload")
 
     # Constructor
     def __init__(self, **kwargs):

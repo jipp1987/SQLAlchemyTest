@@ -154,6 +154,16 @@ class BaseService(object, metaclass=ErrorHandler):
         self._dao.delete(registry)
 
     @service_method
+    def load(self, registry_id: any) -> BaseEntity:
+        """
+        Función pensada para implementar en los servicios de aquellos modelos que tengan relaciones con otras tablas.
+        Es un método de carga completa del objeto.
+        :param registry_id: Id de la entidad.
+        :return: Modelo cargado al completo.
+        """
+        return self.find_by_id(registry_id)
+
+    @service_method
     def find_by_id(self, registry_id: any, join_clauses: List[JoinClause] = None):
         """
         Devuelve un registro a partir de un id.

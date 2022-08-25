@@ -41,8 +41,8 @@ class UsuarioRolDaoImpl(BaseDao):
 
     def find_by_rol_id(self, rol_id: int):
         join_clauses: List[JoinClause] = [
-            JoinClause("rol", EnumJoinTypes.INNER_JOIN),
-            JoinClause("usuario", EnumJoinTypes.INNER_JOIN)
+            JoinClause("rol", EnumJoinTypes.INNER_JOIN, True),
+            JoinClause("usuario", EnumJoinTypes.INNER_JOIN, True)
         ]
 
         filters: List[FilterClause] = [

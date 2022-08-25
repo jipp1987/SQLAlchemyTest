@@ -104,6 +104,30 @@ def create():
     return __create()
 
 
+@db_service_blueprint.route('/load', methods=['POST'])
+def load():
+    """
+    Servicio Rest para carga completa de entidades.
+    """
+
+    @_db_rest_fn
+    def __load(*args, **kwargs):  # noqa
+        request_body: DBRequestBody = kwargs["request_body"]
+        service: BaseService = kwargs["service"]
+
+        # Objeto query_object creado a partir del request_object
+        entity_id = request_body.request_object["entity_id"]
+        entity = service.load(entity_id)
+        json_result = serialize_model(entity)
+
+        response_body = RequestResponse(response_object=json_result, success=True,
+                                        status_code=EnumHttpResponseStatusCodes.OK.value)
+
+        return _convert_request_response_to_json_response(response_body)
+
+    return __load()
+
+
 @db_service_blueprint.route('/update', methods=['POST'])
 def update():
     """
