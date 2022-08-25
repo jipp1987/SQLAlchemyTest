@@ -1,11 +1,8 @@
 from copy import deepcopy
-from typing import List
 
-from core.dao.modelutils import deserialize_model
 from core.service.service import BaseService, service_method, ServiceFactory
 from impl.dao.daoimpl import ClienteDaoImpl, TipoClienteDaoImpl, UsuarioDaoImpl, RolDaoImpl, UsuarioRolDaoImpl
 from impl.model.rol import Rol
-from impl.model.usuariorol import UsuarioRol
 
 
 class ClienteServiceImpl(BaseService):
@@ -47,27 +44,6 @@ class RolServiceImpl(BaseService):
         rol.usuarios_roles = usuario_rol_service.find_by_rol_id(registry_id)
 
         return rol
-
-    @service_method
-    def update_fields(self, registry_id: any, values_dict: dict):
-        # Sobrescritura para recuperar del json los usuarios asociados al rol.
-        usuarios_roles = []
-
-        if self.USUARIOS_ROLES_DICT_KEY in values_dict:
-            usuarios_roles_dict: List[dict] = values_dict[self.USUARIOS_ROLES_DICT_KEY]
-
-            for u in usuarios_roles_dict:
-                usuarios_roles.append(deserialize_model(u, UsuarioRol))
-
-            # Elimino el valor del diccionario, lo trato individualmente en el update
-            values_dict.pop(self.USUARIOS_ROLES_DICT_KEY)
-
-        registry = self._prepare_entity_for_update_fields(registry_id, values_dict)
-        registry.usuarios_roles = usuarios_roles
-
-        self.update(registry)
-
-        return registry
 
     @service_method
     def update(self, registry) -> None:

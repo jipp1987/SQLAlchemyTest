@@ -78,7 +78,17 @@ def set_model_properties_by_dict(entity: BaseEntity, model_dict: dict, only_set_
             # Comprobar si es una relación many-many o one-to-many
             is_many_to_many = rel.direction is not None and rel.direction == symbol("MANYTOMANY")
             is_one_to_many = rel.direction is not None and rel.direction == symbol("ONETOMANY")
+
+            # Si es una entidad mn, voy añadiendo registros al listado
             if is_many_to_many or is_one_to_many:
+                if rel.key in model_dict and model_dict[rel.key]:
+                    # Inicializo la lista
+                    setattr(entity, rel.key, [])
+                    # Añado elementos
+                    att = getattr(entity, rel.key)
+                    for i in model_dict[rel.key]:
+                        att.append(deserialize_model(i, rel.entity.class_))
+
                 continue
 
             related_key = None
