@@ -244,21 +244,21 @@ class BaseDao(object, metaclass=abc.ABCMeta):
         id_field_name: Union[str, List[str]] = self.get_entity_id_field_name()
 
         # Si es una lista, es una entidad con múltiples foreign-keys como una relación n a m
+        filter_for_update: List[expression] = []
         if isinstance(id_field_name, list):
-            # utilizo una query del orm basándome en un diccionario de datos de la foreign-key
-            values: dict = {}
             for pk in id_field_name:
-                values[pk] = getattr(registry, pk)
-
-            registry_in_db = my_session.query(self.entity_type).filter(**values).one()
+                filter_for_update.append(getattr(self.entity_type, pk) == getattr(registry, pk))
         else:
-            registry_in_db = self.find_by_id(getattr(registry, id_field_name))
+            filter_for_update.append(getattr(self.entity_type, id_field_name) == getattr(registry, id_field_name))
 
-        # Recorro la lista de atributos del objeto y se los cambio por el enviado como parámetro
-        # Recupero el tipo de campo para tratar ciertos filtros especiales, como las fechas
+        # Recorro la lista de atributos del objeto y los almaceno en un diccionario
         mapper = inspect(type(registry))
+        values_dict: dict = {}
         for key in mapper.columns:
-            setattr(registry_in_db, key.name, getattr(registry, key.name))
+            values_dict[key.name] = getattr(registry, key.name)
+
+        # Actualizo a través del diccionario
+        my_session.query(self.entity_type).filter(*filter_for_update).update(values_dict)
 
         # Importante hacer flush para que se refleje el cambio en la propia transacción (sin llegar a hacer commit
         # en la db)
@@ -338,7 +338,8 @@ class BaseDao(object, metaclass=abc.ABCMeta):
         Compara listas de una relación n a m del mismo tipo de entidad para saber si debe crear nuevos registros
         y/o eliminar registros que ya no están presentes.
         :param many_to_many_old: Lista de entidades many to many anterior, normalmente consultada en la base de datos.
-        :param many_to_many_new: Nueva lista de entidades many to many anterior, normalmente consultada en la base de datos.
+        :param many_to_many_new: Nueva lista de entidades many to many anterior, normalmente consultada en la base de
+        datos.
         :return: None
         """
         # Comparo listas para saber qué debo eliminar o crear
