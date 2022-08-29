@@ -244,6 +244,7 @@ class BaseDao(object, metaclass=abc.ABCMeta):
         id_field_name: Union[str, List[str]] = self.get_entity_id_field_name()
 
         # Si es una lista, es una entidad con múltiples foreign-keys como una relación n a m
+        # filter(entity_class.id_field == entity_to_update.id_value)
         filter_for_update: List[expression] = []
         if isinstance(id_field_name, list):
             for pk in id_field_name:
