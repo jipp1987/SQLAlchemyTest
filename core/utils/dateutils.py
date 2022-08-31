@@ -84,7 +84,7 @@ def get_start_and_end_of_year(year: int) -> Tuple[datetime, datetime]:
     return since_date, till_date
 
 
-def format_date(datetime_to_format, date_format: EnumDateFormatTypes) -> str:
+def format_date(datetime_to_format: datetime, date_format: EnumDateFormatTypes) -> str:
     """
     Formatea la fecha a string.
     :param datetime_to_format: Fecha a formatear.

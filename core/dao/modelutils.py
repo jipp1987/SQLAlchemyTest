@@ -1,8 +1,11 @@
+from datetime import datetime
 from typing import Union, List
 
-from sqlalchemy import inspect
+from sqlalchemy import inspect, Date, DateTime
 from sqlalchemy.orm import declarative_base
 from sqlalchemy.util import symbol
+
+from core.utils.dateutils import format_date, EnumDateFormatTypes
 
 BaseEntity = declarative_base()
 """Declaración de clase para mapeo de todas la entidades de la base de datos."""
@@ -139,6 +142,8 @@ def serialize_model(model: BaseEntity) -> dict:
     # de la entidad al menos.
     foreign_key_names: list = []
 
+    column_type: any
+    column_value: any
     columns = model.__table__.columns
     for column in columns:
         # Las columnas de tipo foreign_key no las quiero exportar
@@ -146,8 +151,15 @@ def serialize_model(model: BaseEntity) -> dict:
             foreign_key_names.append(column.name)
             continue
 
-        # Añado clave-valor al diccionario
-        json_dict[column.name] = getattr(model, column.name)
+        column_type = column.type
+        column_value = getattr(model, column.name)
+
+        # Comprobar si es una fecha: en ese caso hay que serializarlo como string
+        if (isinstance(column_type, Date) or isinstance(column_type, DateTime)) and isinstance(column_value, datetime):
+            json_dict[column.name] = format_date(column_value, EnumDateFormatTypes.YEAR_MONTH_DAY_HH_MM_SS)
+        else:
+            # Añado clave-valor al diccionario
+            json_dict[column.name] = column_value
 
     # Obtener relaciones del modelo
     relationships = model.__mapper__.relationships

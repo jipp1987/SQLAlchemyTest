@@ -195,6 +195,30 @@ class BaseDao(object, metaclass=abc.ABCMeta):
         """
         return find_entity_id_field_name(self.entity_type)
 
+    @staticmethod
+    def __check_date_fields(registry: BaseEntity) -> None:
+        """
+        Comprueba los posibles campos fecha de la entidad a persistir para controlar si la fecha ha llegado como string
+        y convertirla a date si es necesario.
+        :param registry:
+        :return: None
+        """
+        mapper = inspect(type(registry))
+        columns = mapper.columns
+
+        field_type: any
+        attr: any
+
+        # Recorro las columnas buscando posibles valores de fecha
+        for c in columns:
+            field_type = c.type
+            if isinstance(field_type, Date) or isinstance(field_type, DateTime):
+                if hasattr(registry, c.name):
+                    # Si es un string, lo convierto a fecha de python.
+                    attr = getattr(registry, c.name)
+                    if isinstance(attr, str):
+                        setattr(registry, c.name, string_to_datetime_sql(attr))
+
     # MÉTODOS DE ACCESO A DATOS
     def create(self, registry: BaseEntity) -> None:
         """
@@ -219,6 +243,9 @@ class BaseDao(object, metaclass=abc.ABCMeta):
             my_session.execute(stmt)
             my_session.flush()
         else:
+            # Revisar campos fecha
+            self.__check_date_fields(registry)
+
             # Hago una copia del objeto tal cual está actualmente
             registry_to_create = deepcopy(registry)
 
@@ -240,12 +267,12 @@ class BaseDao(object, metaclass=abc.ABCMeta):
         """
         my_session = type(self).get_session_for_current_thread()
 
-        # Busco el elemento en la base de datos
-        registry_in_db: BaseEntity
-        id_field_name: Union[str, List[str]] = self.get_entity_id_field_name()
+        # Revisar campos fecha
+        self.__check_date_fields(registry)
 
         # Si es una lista, es una entidad con múltiples foreign-keys como una relación n a m
         # filter(entity_class.id_field == entity_to_update.id_value)
+        id_field_name: Union[str, List[str]] = self.get_entity_id_field_name()
         filter_for_update: List[expression] = []
         if isinstance(id_field_name, list):
             for pk in id_field_name:
