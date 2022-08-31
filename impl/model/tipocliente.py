@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, ForeignKey
+from sqlalchemy import Column, Integer, String, ForeignKey, DateTime
 from sqlalchemy.orm import relationship
 
 from core.dao.modelutils import BaseEntity
@@ -14,6 +14,8 @@ class TipoCliente(BaseEntity):
     id = Column(Integer, primary_key=True)
     codigo = Column(String, nullable=False)
     descripcion = Column(String, nullable=False)
+    fechacreacion = Column(DateTime, nullable=True)
+    fechaultmod = Column(DateTime, nullable=True)
 
     usuariocreacionid = Column(Integer, ForeignKey("usuarios.id"), nullable=True)
     usuarioultmodid = Column(Integer, ForeignKey("usuarios.id"), nullable=True)

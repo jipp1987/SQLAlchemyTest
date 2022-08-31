@@ -101,3 +101,23 @@ def timestamp_to_date(timestamp: float) -> datetime:
     :return:
     """
     return datetime.fromtimestamp(timestamp)
+
+
+def string_to_datetime(date_time_str: str, date_format: EnumDateFormatTypes) -> datetime:
+    """
+    Devuelve un objeto fecha a partir de un timestamp.
+    :param date_time_str: Fecha en formato string.
+    :param date_format: Formato de fecha.
+    :return: datetime
+    """
+    return datetime.strptime(date_time_str, date_format.date_format)
+
+
+def string_to_datetime_sql(date_time_str: str) -> datetime:
+    """
+    Devuelve un objeto fecha a partir de un timestamp.
+    :param date_time_str: Fecha en formato string. El string se asume que está en formato de
+    fecha SQL: YYYY-MM-dd HH:mm:ss
+    :return: datetime
+    """
+    return datetime.strptime(date_time_str, EnumDateFormatTypes.YEAR_MONTH_DAY_HH_MM_SS.date_format)

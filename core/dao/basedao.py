@@ -6,7 +6,7 @@ from copy import deepcopy
 from dataclasses import dataclass
 from typing import Dict, List, Union, Tuple
 
-from sqlalchemy import create_engine, select, and_, or_, inspect, func, insert, delete
+from sqlalchemy import create_engine, select, and_, or_, inspect, func, insert, delete, Date, DateTime
 from sqlalchemy.engine import Engine
 from sqlalchemy.orm import sessionmaker, contains_eager, aliased
 from sqlalchemy.sql import expression
@@ -14,6 +14,7 @@ from sqlalchemy.sql import expression
 from core.dao.daotools import FilterClause, EnumFilterTypes, EnumOperatorTypes, JoinClause, EnumJoinTypes, \
     OrderByClause, GroupByClause, EnumOrderByTypes, FieldClause, EnumAggregateFunctions
 from core.dao.modelutils import BaseEntity, find_entity_id_field_name
+from core.utils.dateutils import string_to_datetime_sql
 
 _SQLEngineTypes = namedtuple('SQLEngineTypes', ['value', 'engine_name'])
 """Tupla para propiedades de EnumSQLEngineTypes. La uso para poder añadirle una propiedad al enumerado, aparte del 
@@ -673,7 +674,14 @@ class BaseDao(object, metaclass=abc.ABCMeta):
             :param field_type: Tipo de campo objetivo del filtro en la entidad de referencia
             :return: expression
             """
-            filter_expression: any = None
+            filter_expression: any
+
+            # Tratar el tipo de campo para ciertos casos
+            if field_type is not None:
+                # Caso para campos de tipo fecha: si llega como string, convertirla a fecha
+                if (isinstance(field_type, Date) or isinstance(field_type, DateTime)) \
+                        and isinstance(filter_clause.object_to_compare, str):
+                    filter_clause.object_to_compare = string_to_datetime_sql(filter_clause.object_to_compare)
 
             # Voy comprobando el tipo de filtro y construyendo la expresión de forma adecuada según los criterios de
             # SQLAlchemy
@@ -759,7 +767,7 @@ class BaseDao(object, metaclass=abc.ABCMeta):
                 # Información del campo
 
                 # Tratar este campo en el futuro, principalmente para filtros por fechas
-                field_type = field_info.field_type
+                field_type: any = field_info.field_type
 
                 field_to_filter_by = field_info.field_to_work_with
 
