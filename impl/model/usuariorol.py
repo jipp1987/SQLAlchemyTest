@@ -12,8 +12,8 @@ class UsuarioRol(BaseEntity):
     rolid = Column(Integer, ForeignKey("roles.id"), primary_key=True)
     usuarioid = Column(Integer, ForeignKey("usuarios.id"), primary_key=True)
 
-    rol = relationship("Rol", foreign_keys=[rolid], lazy="raise")
-    usuario = relationship("Usuario", foreign_keys=[usuarioid], lazy="raise")
+    rol = relationship("Rol", foreign_keys=[rolid], lazy="raise", overlaps="usuarios_roles")
+    usuario = relationship("Usuario", foreign_keys=[usuarioid], lazy="raise", overlaps="usuarios_roles")
 
     def __init__(self, **kwargs):
         super(UsuarioRol, self).__init__(**kwargs)
