@@ -237,7 +237,10 @@ def select():
                                            field_clauses=query_object.fields, group_by_clauses=query_object.group_by,
                                            limit=query_object.limit, offset=query_object.offset)
             if result:
-                json_result.extend(result)
+                for r in result:
+                    # Para facilitar la conversión a json, creo una instancia del objeto y
+                    # la serializo aunque no tenga todos los campos
+                    json_result.append(serialize_model(service.get_entity_type()(**r)))
         else:
             result = service.select(filter_clauses=query_object.filters, order_by_clauses=query_object.order,
                                     join_clauses=query_object.joins, limit=query_object.limit,
