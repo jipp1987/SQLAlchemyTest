@@ -192,7 +192,8 @@ class BaseService(object, metaclass=ErrorHandler):
     @service_method
     def select_fields(self, field_clauses: List[FieldClause], filter_clauses: List[FilterClause] = None,
                       join_clauses: List[JoinClause] = None, order_by_clauses: List[OrderByClause] = None,
-                      group_by_clauses: List[GroupByClause] = None, limit: int = None, offset: int = None) \
+                      group_by_clauses: List[GroupByClause] = None, limit: int = None, offset: int = None,
+                      return_raw_result: bool = False) \
             -> List[dict]:
         """
         Selecciona campos individuales. Los fetch de los joins serán ignorados, sólo se devuelven los campos indicados
@@ -204,11 +205,14 @@ class BaseService(object, metaclass=ErrorHandler):
         :param group_by_clauses: Group Bys.
         :param limit: Límite de resultados..
         :param offset: Índice para paginación de resultados.
+        :param return_raw_result: Si True, devuelve el resultado tal cual, como un listado de
+        diccionarios, sin intentar transformarlo a entidad. False por defecto.
         :return: Lista de diccionarios.
         """
         return self._dao.select_fields(filter_clauses=filter_clauses, join_clauses=join_clauses,
                                        order_by_clauses=order_by_clauses, field_clauses=field_clauses,
-                                       group_by_clauses=group_by_clauses, limit=limit, offset=offset)
+                                       group_by_clauses=group_by_clauses, limit=limit, offset=offset,
+                                       return_raw_result=return_raw_result)
 
     @service_method
     def count_by_filtered_query(self, filter_clauses: List[FilterClause] = None,

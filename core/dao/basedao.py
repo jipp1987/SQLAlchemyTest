@@ -13,12 +13,16 @@ from sqlalchemy.sql import expression
 
 from core.dao.daotools import FilterClause, EnumFilterTypes, EnumOperatorTypes, JoinClause, EnumJoinTypes, \
     OrderByClause, GroupByClause, EnumOrderByTypes, FieldClause, EnumAggregateFunctions
-from core.dao.modelutils import BaseEntity, find_entity_id_field_name
+from core.dao.modelutils import BaseEntity, find_entity_id_field_name, deserialize_model
 from core.utils.dateutils import string_to_datetime_sql
 
 _SQLEngineTypes = namedtuple('SQLEngineTypes', ['value', 'engine_name'])
 """Tupla para propiedades de EnumSQLEngineTypes. La uso para poder añadirle una propiedad al enumerado, aparte del 
 propio valor."""
+
+_separator_for_nested_fields: str = "$123$"
+"""Separador para establecer un alias interno para los fieldclause, para ser capaz de convertir luego un campo de 
+una entidad anidada a la propiedad del objeto correspondiente."""
 
 
 class EnumSQLEngineTypes(enum.Enum):
@@ -415,7 +419,8 @@ class BaseDao(object, metaclass=abc.ABCMeta):
 
     def select_fields(self, field_clauses: List[FieldClause], filter_clauses: List[FilterClause] = None,
                       join_clauses: List[JoinClause] = None, order_by_clauses: List[OrderByClause] = None,
-                      group_by_clauses: List[GroupByClause] = None, limit: int = None, offset: int = None) \
+                      group_by_clauses: List[GroupByClause] = None, limit: int = None, offset: int = None,
+                      return_raw_result: bool = False) \
             -> List[dict]:
         """
         Selecciona campos individuales. Los fetch de los joins serán ignorados, sólo se devuelven los campos indicados
@@ -427,11 +432,14 @@ class BaseDao(object, metaclass=abc.ABCMeta):
         :param group_by_clauses: Group Bys.
         :param limit: Límite de resultados..
         :param offset: Índice para paginación de resultados.
+        :param return_raw_result: Si True, devuelve el resultado tal cual, como un listado de
+        diccionarios, sin intentar transformarlo a entidad. False por defecto.
         :return: Lista de diccionarios.
         """
         return self.__select(filter_clauses=filter_clauses, join_clauses=join_clauses,
                              order_by_clauses=order_by_clauses, field_clauses=field_clauses,
-                             group_by_clauses=group_by_clauses, limit=limit, offset=offset)
+                             group_by_clauses=group_by_clauses, limit=limit, offset=offset,
+                             return_raw_result=return_raw_result)
 
     def select_by_statement(self, stmt: expression, is_return_row_object: bool) -> List[Union[BaseEntity, Tuple]]:
         """
@@ -458,7 +466,8 @@ class BaseDao(object, metaclass=abc.ABCMeta):
 
     def __select(self, filter_clauses: List[FilterClause] = None, join_clauses: List[JoinClause] = None,
                  order_by_clauses: List[OrderByClause] = None, group_by_clauses: List[GroupByClause] = None,
-                 field_clauses: List[FieldClause] = None, limit: int = None, offset: int = None) \
+                 field_clauses: List[FieldClause] = None, limit: int = None, offset: int = None,
+                 return_raw_result: bool = False) \
             -> Union[List[BaseEntity], List[tuple]]:
         """
         Hace una consulta a la base de datos.
@@ -527,8 +536,13 @@ class BaseDao(object, metaclass=abc.ABCMeta):
 
         # Si hay field_clauses, es una consulta de campos individuales
         is_select_with_fields: bool = False
+        # Este diccionario lo voy a necesitar para, una vez he obtenido el resultado de la select por campos,
+        # ser capaz de volcar el resultado a cada campo del objeto que le corresponda.
+        field_alias_for_result: Dict[str, str] = {}
+
         if field_clauses:
-            fields_to_select = self.__resolve_field_clauses(field_clauses=field_clauses, alias_dict=aliases_dict)
+            fields_to_select = self.__resolve_field_clauses(field_clauses=field_clauses, alias_dict=aliases_dict,
+                                                            field_alias_for_result=field_alias_for_result)
             is_select_with_fields = True
             stmt = select(*fields_to_select)
         else:
@@ -568,8 +582,11 @@ class BaseDao(object, metaclass=abc.ABCMeta):
             # Esto devuelve un objeto Row de SQLAlchemy, lo convierto a diccionario
             result = []
             if row_result:
-                for r in row_result:
-                    result.append(dict(r))
+                if return_raw_result:
+                    for r in row_result:
+                        result.append(dict(r))
+                else:
+                    result = self.__convert_from_dict_to_entity(row_result, field_alias_for_result)
         else:
             result = my_session.execute(stmt).scalars().all()
 
@@ -578,6 +595,96 @@ class BaseDao(object, metaclass=abc.ABCMeta):
         my_session.expunge_all()
 
         return result
+
+    def __convert_from_dict_to_entity(self, lst_obj_dict: List[dict], field_alias_for_result: Dict[str, str]) -> \
+            List[BaseEntity]:
+        """
+        Convierte un listado de filas (diccionarios) en en un listado de diccioarios que se corresponde con el modelo
+        de las entidades persistidas, anidando diccionarios cuando corresponde, de tal manera que se facilita su
+        conversión posterior a entidades como tal.
+        :param lst_obj_dict: Listado de diccionarios obtenidos de una consulta por campos de SQLAlchemy.
+        :param field_alias_for_result: Alias de campos calculados previamente.
+        :return: Listado de diccionarios que se corresponden con el modelo de datos de las entidades.
+        """
+        # La primera parte del proceso es parecida a resolve_field_aliases: voy a recorrer la lista de resultados y
+        # generar un nuevo diccionario para cada uno de ellos con la idea de tener las claves ordenadas por nivel de
+        # anidamiento; así, a medida que vaya generando los objetos anidados me aseguro de tener el objeto de nivel más
+        # superior siempre creado.
+        lst_fields: List[str] = []
+        for key in field_alias_for_result.keys():
+            lst_fields.append(key)
+
+        field_sorted = namedtuple("field_sorted", ["field_split", "field_name"])
+        fields_sorted_list: List[field_sorted] = []
+        # Voy a generar un nuevo result_set de tal manera que los valores del diccionario estén ordenados de acuerdo
+        # con el tamaño del string que voy a calcular ahora. El tamaño del string no es en sí su longitud sino la
+        # cantidad de entidades anidadas que lo conforman (entidad_1.entidad_11.entidad_12...)
+        rows_with_fields_sortened: List[dict] = []
+
+        rel_split: list
+        for f_name in lst_fields:
+            rel_split = f_name.split(_separator_for_nested_fields)
+            fields_sorted_list.append(field_sorted(field_split=rel_split, field_name=f_name))
+
+        fields_sorted_list = sorted(fields_sorted_list, key=lambda x: (len(x.field_split), x.field_name),
+                                    reverse=False)
+
+        key_: str
+        new_dict: dict
+        for row in lst_obj_dict:
+            new_dict = {}
+            for f in fields_sorted_list:
+                # Sustituyo el token que utilicé en la consulta por el punto
+                key_ = f.field_name.replace(_separator_for_nested_fields, ".")
+                # Añado la clave al nuevo diccionario, dado que estoy utilizando la lista de campos ordenada me aseguro
+                # de que para campos anidados siempre exista el nivel superior antes de llegar a los inferiores.
+                new_dict[key_] = row[f.field_name]
+
+            rows_with_fields_sortened.append(new_dict)
+
+        # Ya tengo un nuevo resultado con cada fila con los campos ordenados, ahora lo que tengo que hace es, para
+        # aquellos campos que sean entidades anidadas, ir generando un diccionario dentro del diccionario con los
+        # campos que le correspondan a ese nivel de anidamiento
+        final_result: List[BaseEntity] = []
+        final_dict: dict
+        last_dict: dict
+        for r in rows_with_fields_sortened:
+            final_dict = {}
+
+            for k, v in r.items():
+                rel_split = k.split(".")
+
+                # Si divido la clave por el punto y tiene más de un elemento, significa que es una entidad anidada y
+                # tengo que ir anidando diccionarios hasta la última posición que será el valor final
+                if len(rel_split) > 1:
+                    # Inicializo el último diccionario en el diccionario principal
+                    last_dict = final_dict
+
+                    for idx, x in enumerate(rel_split):
+                        # Divido la operación entre las posiciones previas a la última, que consisten en ir
+                        # anidando diccionarios, y la última que almacena el valor como tal
+                        if idx < len(rel_split) - 1:
+                            # Si no existe la últia clave en el anterior diccionario, inicializo un nuevo diccionario
+                            # en ella. Dado que ordené previamente todos las claves de cada diccionario según el nivel
+                            # de anidamiento, puedo confiar en que el proceso va a almacenar siempre el valor
+                            # donde corresponde.
+                            if x not in last_dict:
+                                last_dict[x] = {}
+                            # Almaceno el último diccionario
+                            last_dict = last_dict[x]
+                        else:
+                            # Al llegar a la última posición, es el valor final del diccionario anidado
+                            last_dict[x] = v
+
+                else:
+                    # Si la clave sólo tiene una posición, significa que no es un valor anidado y por tanto le puedo
+                    # establecer directamente el valor correspondiente
+                    final_dict[k] = v
+
+            # Al final guardo un modelo de datos válido
+            final_result.append(deserialize_model(final_dict, self.entity_type))
+
+        return final_result
 
     def __resolve_group_by_clauses(self, group_by_clauses: List[GroupByClause], stmt,
                                    alias_dict: Dict[str, _SQLModelHelper]):
@@ -629,12 +736,14 @@ class BaseDao(object, metaclass=abc.ABCMeta):
 
         return stmt
 
-    def __resolve_field_clauses(self, field_clauses: List[FieldClause], alias_dict: Dict[str, _SQLModelHelper]) \
+    def __resolve_field_clauses(self, field_clauses: List[FieldClause], alias_dict: Dict[str, _SQLModelHelper],
+                                field_alias_for_result: Dict[str, str]) \
             -> list:
         """
         Resuelve las cláusulas order by.
         :param alias_dict: Diccionario de alias de campos.
         :param field_clauses: Lista de campos a seleccionar.
+        :param field_alias_for_result: Diccionario para almacenar el alias asignado para cada campo.
         :return: List[expression]
         """
         # Obtengo la información de los campos
@@ -667,10 +776,21 @@ class BaseDao(object, metaclass=abc.ABCMeta):
                     field_to_select = func.avg(field_to_select)
 
             # Label o alias del campo
-            if f.field_label:
-                field_to_select = field_to_select.label(f.field_label)
+            field_alias_for_query: str = f.field_name
 
+            if f.field_label:
+                field_alias_for_query = f.field_label
+            else:
+                # Si no tiene label, le añado uno siempre: si no es entidad anidada es el nombre mismo del campo y
+                # si lo es sustituyo los puntos por un token admitido por SQL
+                if "." in f.field_name:
+                    field_alias_for_query = f.field_name.replace(".", _separator_for_nested_fields)
+
+            field_to_select = field_to_select.label(field_alias_for_query)
             fields_to_select.append(field_to_select)
+
+            # Añado al diccionario de alias para el resultado la clave campo-alias
+            field_alias_for_result[field_alias_for_query] = f.field_name
 
         return fields_to_select
 
