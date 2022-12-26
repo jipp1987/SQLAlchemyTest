@@ -255,3 +255,38 @@ def select():
         return _convert_request_response_to_json_response(response_body)
 
     return __select()
+
+
+@db_service_blueprint.route('/count', methods=['POST'])
+def count():
+    """
+    Servicio Rest para seleccionar entidades de la base de datos.
+    """
+
+    @_db_rest_fn
+    def __count(*args, **kwargs): # noqa
+        """
+        Función interior select.
+        :param request_body:
+        :param service:
+        :return: Response.
+        """
+        # En realidad estas dos variables podrían ser los parámetros de la función... pero si no utilizo
+        # "*args, **kwargs" el debugger no sabe llegar hasta aquí sin hacer step into desde el decorador.
+        request_body: DBRequestBody = kwargs["request_body"]
+        service: BaseService = kwargs["service"]
+
+        result: int
+
+        # Objeto query_object creado a partir del request_object
+        query_object = JsonQuery(request_body.request_object)
+
+        # Utilizo count_by_filtered_query del servicio asociado
+        result = service.count_by_filtered_query(filter_clauses=query_object.filters, join_clauses=query_object.joins)
+
+        response_body: RequestResponse = RequestResponse(response_object=result, success=True,
+                                                         status_code=EnumHttpResponseStatusCodes.OK.value)
+
+        return _convert_request_response_to_json_response(response_body)
+
+    return __count()

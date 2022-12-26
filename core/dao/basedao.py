@@ -109,7 +109,7 @@ class BaseDao(object, metaclass=abc.ABCMeta):
         # Al crear un engine con la función create_engine(), se genera un pool QueuePool que viene configurado
         # como un pool de 5 conexiones como máximo por defecto; lo cambio para añadir unas cuantas más.
         cls.__sqlalchemy_engine = create_engine(f'{db_engine.engine_name}://{username}:{password}@'
-                                                f'{host}:{port}/{dbname}', pool_size=20, max_overflow=0, echo=True)
+                                                f'{host}:{port}/{dbname}', pool_size=20, max_overflow=0, echo=False)
 
         # Inicializar el creador de sesiones (transacciones)
         cls.__session_maker = sessionmaker(bind=cls.__sqlalchemy_engine)

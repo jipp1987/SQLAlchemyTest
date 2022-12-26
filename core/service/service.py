@@ -223,17 +223,19 @@ class BaseService(object, metaclass=ErrorHandler):
         :param join_clauses: Joins opcionales relacionados con los filtros.
         :return: int
         """
-        field_clauses: List[FieldClause] = [FieldClause(self._dao.get_entity_id_field_name(),
-                                                        EnumAggregateFunctions.COUNT)]
+        field_label: str = f"count_{self._dao.get_entity_id_field_name()}"
+        field_clauses: List[FieldClause] = [FieldClause(field_name=self._dao.get_entity_id_field_name(),
+                                                        aggregate_function=EnumAggregateFunctions.COUNT,
+                                                        field_label=field_label)]
 
         result = self._dao.select_fields(field_clauses=field_clauses, filter_clauses=filter_clauses,
-                                         join_clauses=join_clauses)
+                                         join_clauses=join_clauses, return_raw_result=True)
 
         # El resultado es una lista de tuplas: obtengo el primer valor del primer registro, que es donde está el
         # el recuento de registros.
         count: int = 0
         if result and result[0]:
-            count = result[0][0]
+            count = result[0][field_label]
 
         return count
 
