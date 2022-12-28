@@ -1,3 +1,4 @@
+import datetime
 import types
 from typing import Callable, Dict, Type, List
 
@@ -105,6 +106,13 @@ class BaseService(object, metaclass=ErrorHandler):
         :param registry: Registro a crear.
         :return: None
         """
+        # Comprobar si tiene los atributos de fecha para establecerlos aquí
+        if hasattr(registry, "fechacreacion"):
+            setattr(registry, "fechacreacion", datetime.datetime.now())
+
+        if hasattr(registry, "fechaultmod"):
+            setattr(registry, "fechaultmod", datetime.datetime.now())
+
         self._dao.create(registry)
 
     @service_method
@@ -114,6 +122,10 @@ class BaseService(object, metaclass=ErrorHandler):
         :param registry: Registro a modificar.
         :return: None
         """
+        # Comprobar si tiene los atributos de fecha para establecerlos aquí
+        if hasattr(registry, "fechaultmod"):
+            setattr(registry, "fechaultmod", datetime.datetime.now())
+
         self._dao.update(registry)
 
     @service_method
