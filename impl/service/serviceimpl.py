@@ -2,6 +2,7 @@ from copy import deepcopy
 
 from core.service.service import BaseService, service_method, ServiceFactory
 from impl.dao.daoimpl import ClienteDaoImpl, TipoClienteDaoImpl, UsuarioDaoImpl, RolDaoImpl, UsuarioRolDaoImpl
+from impl.model.cliente import Cliente
 from impl.model.rol import Rol
 
 
@@ -10,6 +11,16 @@ class ClienteServiceImpl(BaseService):
 
     def __init__(self):
         super().__init__(dao=ClienteDaoImpl())
+
+    @service_method
+    def load(self, registry_id: int) -> Rol:
+        cliente: Cliente = super().load(registry_id)
+
+        # Carga de tipo de cliente
+        tipos_cliente_service = ServiceFactory.get_service(TipoClienteServiceImpl)
+        cliente.tipo_cliente = tipos_cliente_service.find_by_id(cliente.tipoclienteid)
+
+        return cliente
 
 
 class TipoClienteServiceImpl(BaseService):
