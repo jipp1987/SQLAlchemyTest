@@ -421,7 +421,7 @@ class BaseDao(object, metaclass=abc.ABCMeta):
                       join_clauses: List[JoinClause] = None, order_by_clauses: List[OrderByClause] = None,
                       group_by_clauses: List[GroupByClause] = None, limit: int = None, offset: int = None,
                       return_raw_result: bool = False) \
-            -> List[dict]:
+            -> Union[List[dict], List[BaseEntity]]:
         """
         Selecciona campos individuales. Los fetch de los joins serán ignorados, sólo se devuelven los campos indicados
         en los field_clauses.

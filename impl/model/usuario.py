@@ -12,7 +12,7 @@ class Usuario(BaseEntity):
     # Mapeo de columnas de la base de datos
     id = Column(Integer, primary_key=True)
     username = Column(String, nullable=False)
-    password = Column(Text, nullable=False)
+    password = Column(Text(60), nullable=False)
 
     # Relación n a m de Usuarios-roles. Utilizo noload porque quiero que este objeto sea estrictamente de escritura,
     # lo completo yo a nivel de servicio.

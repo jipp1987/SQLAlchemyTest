@@ -1,9 +1,13 @@
 from copy import deepcopy
+from typing import List
 
+from core.dao.daotools import EnumFilterTypes, FilterClause, FieldClause
 from core.service.service import BaseService, service_method, ServiceFactory
+from core.utils.passwordutils import check_password_using_bcrypt, hash_password_using_bcrypt
 from impl.dao.daoimpl import ClienteDaoImpl, TipoClienteDaoImpl, UsuarioDaoImpl, RolDaoImpl, UsuarioRolDaoImpl
 from impl.model.cliente import Cliente
 from impl.model.rol import Rol
+from impl.model.usuario import Usuario
 
 
 class ClienteServiceImpl(BaseService):
@@ -35,6 +39,52 @@ class UsuarioServiceImpl(BaseService):
 
     def __init__(self):
         super().__init__(dao=UsuarioDaoImpl())
+
+    @service_method
+    def check_password(self, usuario: Usuario):
+        """
+        Comprueba y establece el valor encriptado del password del usuario si es necesario.
+        :param usuario:
+        :return: None
+        """
+        if usuario.password is not None:
+            # Si el usuario no tiene id significa que aún no se ha creado en la base de datos, con lo cual se
+            # establecer el password encriptado directamente
+            if usuario.id is None:
+                usuario.password = hash_password_using_bcrypt(usuario.password)
+            else:
+                # Si tiene id, busco el password antiguo en la base de datos para comprobar si realmente ha cambiado
+                # usando el comparador de bcrypt. Dado que bcrypt va a hashear el password de otra forma, no quiero
+                # modificar el valor en la base de datos salvo que realmente sea otro password.
+                filters: List[FilterClause] = [FilterClause(field_name="id", filter_type=EnumFilterTypes.EQUALS,
+                                                            object_to_compare=usuario.id)]
+                fields: List[FieldClause] = [FieldClause(field_name="password")]
+                result: List[Usuario] = self.select_fields(field_clauses=fields, filter_clauses=filters,
+                                                           offset=0, limit=1)
+
+                if result and len(result) > 0:
+                    usuario_old = result[0]
+
+                    # Si el password del usuario ya estuviese encriptado en este punto, sería igual que el original
+                    if usuario.password != usuario_old.password:
+                        if not check_password_using_bcrypt(usuario.password, usuario_old.password):
+                            usuario.password = hash_password_using_bcrypt(usuario.password)
+                        else:
+                            # Mantener el password original en caso contrario (el password del usuario es el mismo
+                            # pero está desencriptado)
+                            usuario.password = usuario_old.password
+
+    @service_method
+    def insert(self, entity: Usuario):
+        # Sobrescritura de insert para comprobar password
+        self.check_password(entity)
+        super().insert(entity)
+
+    @service_method
+    def update(self, entity: Usuario):
+        # Sobrescritura de update para comprobar password
+        self.check_password(entity)
+        super().update(entity)
 
 
 class RolServiceImpl(BaseService):

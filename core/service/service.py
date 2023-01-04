@@ -1,6 +1,6 @@
 import datetime
 import types
-from typing import Callable, Dict, Type, List
+from typing import Callable, Dict, Type, List, Union
 
 from core.dao.daotools import FilterClause, JoinClause, OrderByClause, FieldClause, EnumAggregateFunctions, \
     GroupByClause
@@ -206,7 +206,7 @@ class BaseService(object, metaclass=ErrorHandler):
                       join_clauses: List[JoinClause] = None, order_by_clauses: List[OrderByClause] = None,
                       group_by_clauses: List[GroupByClause] = None, limit: int = None, offset: int = None,
                       return_raw_result: bool = False) \
-            -> List[dict]:
+            -> Union[List[dict], List[BaseEntity]]:
         """
         Selecciona campos individuales. Los fetch de los joins serán ignorados, sólo se devuelven los campos indicados
         en los field_clauses.
