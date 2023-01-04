@@ -626,7 +626,7 @@ class BaseDao(object, metaclass=abc.ABCMeta):
             rel_split = f_name.split(_separator_for_nested_fields)
             fields_sorted_list.append(field_sorted(field_split=rel_split, field_name=f_name))
 
-        fields_sorted_list = sorted(fields_sorted_list, key=lambda x: (len(x.field_split), x.field_name),
+        fields_sorted_list = sorted(fields_sorted_list, key=lambda t: (len(t.field_split), t.field_name),
                                     reverse=False)
 
         key_: str
