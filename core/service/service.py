@@ -3,8 +3,8 @@ import types
 from typing import Callable, Dict, Type, List, Union
 
 from core.dao.daotools import FilterClause, JoinClause, OrderByClause, FieldClause, EnumAggregateFunctions, \
-    GroupByClause
-from core.dao.modelutils import BaseEntity, set_model_properties_by_dict
+    GroupByClause, EnumFilterTypes
+from core.dao.modelutils import BaseEntity, set_model_properties_by_dict, find_entity_id_field_name
 from core.exception.errorhandler import ErrorHandler
 
 
@@ -251,6 +251,36 @@ class BaseService(object, metaclass=ErrorHandler):
 
         return count
 
+    @service_method
+    def does_code_exist(self, code_field_name: str, code_to_check: str, entity_id: Union[int, None]) -> bool:
+        """
+        Devuelve true si un código ya existe en la base de datos para una tabla en concreto.
+        :param code_field_name: Nombre del campo del código en la entidad.
+        :param code_to_check: Código que se va a comprobar si existe en la base de datos.
+        :param entity_id: Id de la entidad. Se utiliza para entidades que ya existen en la base de datos, normalmente
+        para un update de tal manera que no se encuentre a sí misma y devuelva un falso positivo.
+        :return: True si ya existe, False si no.
+        """
+        filters: List[FilterClause] = [FilterClause(field_name=code_field_name, filter_type=EnumFilterTypes.EQUALS,
+                                                    object_to_compare=code_to_check)]
+
+        # Para updates se debe pasar el id de la entidad para prevenir que se encuentre a sí misma durante la
+        # comprobación.
+        if entity_id is not None:
+            id_field_name: Union[str, List[str]] = find_entity_id_field_name(self.get_entity_type())
+
+            # En principio esta función no está prevista para entidades con más de una clave principal,
+            # para esos casos es mejor crear una función propia dentro de la implementación del servicio.
+            if isinstance(id_field_name, list):
+                raise ValueError("This method is not supported for entities with multiple primary keys.")
+
+            filters.append(FilterClause(field_name=id_field_name, filter_type=EnumFilterTypes.NOT_EQUALS,
+                                        object_to_compare=entity_id))
+
+        result: int = self.count_by_filtered_query(filter_clauses=filters)
+
+        return result > 0
+
 
 class ServiceFactory(object):
     """
@@ -274,7 +304,7 @@ class ServiceFactory(object):
 
         # Si no existe, la creo y la almaceno en el diccionario
         if class_name not in cls.__services:
-            cls.__services[class_name] = class_to_instanciate() # noqa
+            cls.__services[class_name] = class_to_instanciate()  # noqa
 
         # devuelvo la instancia del diccionario
         return cls.__services[class_name]

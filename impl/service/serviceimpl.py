@@ -7,6 +7,7 @@ from core.utils.passwordutils import check_password_using_bcrypt, hash_password_
 from impl.dao.daoimpl import ClienteDaoImpl, TipoClienteDaoImpl, UsuarioDaoImpl, RolDaoImpl, UsuarioRolDaoImpl
 from impl.model.cliente import Cliente
 from impl.model.rol import Rol
+from impl.model.tipocliente import TipoCliente
 from impl.model.usuario import Usuario
 
 
@@ -26,12 +27,60 @@ class ClienteServiceImpl(BaseService):
 
         return cliente
 
+    @service_method
+    def create(self, entity: Cliente):
+        # Sobrescritura para comprobar el código
+        if self.does_code_exist("codigo", entity.codigo, None):
+            raise ValueError(f"There is already an entity with code: {entity.codigo}.")
+
+        # El código debe tener un tamaño de 10 caracteres y ser consistir únicamente en dígitos
+        if not len(entity.codigo) == 10 or not entity.codigo.isdigit():
+            raise ValueError(f"Code must have ten characters. Only digits are allowed.")
+
+        super().create(entity)
+
+    @service_method
+    def update(self, entity: Cliente):
+        # Sobrescritura para comprobar el código
+        if self.does_code_exist("codigo", entity.codigo, entity.id):
+            raise ValueError(f"There is already an entity with code: {entity.codigo}.")
+
+        # El código debe tener un tamaño de 10 caracteres y ser consistir únicamente en dígitos
+        if not len(entity.codigo) == 10 or not entity.codigo.isdigit():
+            raise ValueError(f"Code must have ten characters. Only digits are allowed.")
+
+        super().update(entity)
+
 
 class TipoClienteServiceImpl(BaseService):
     """Implementación del service de tipos de cliente."""
 
     def __init__(self):
         super().__init__(dao=TipoClienteDaoImpl())
+
+    @service_method
+    def create(self, entity: TipoCliente):
+        # Sobrescritura para comprobar el código
+        if self.does_code_exist("codigo", entity.codigo, None):
+            raise ValueError(f"There is already an entity with code: {entity.codigo}.")
+
+        # El código debe tener un tamaño de 10 caracteres y ser consistir únicamente en dígitos
+        if not len(entity.codigo) == 4 or not entity.codigo.isdigit():
+            raise ValueError(f"Code must have four characters. Only digits are allowed.")
+
+        super().create(entity)
+
+    @service_method
+    def update(self, entity: TipoCliente):
+        # Sobrescritura para comprobar el código
+        if self.does_code_exist("codigo", entity.codigo, entity.id):
+            raise ValueError(f"There is already an entity with code: {entity.codigo}.")
+
+        # El código debe tener un tamaño de 10 caracteres y ser consistir únicamente en dígitos
+        if not len(entity.codigo) == 4 or not entity.codigo.isdigit():
+            raise ValueError(f"Code must have four characters. Only digits are allowed.")
+
+        super().update(entity)
 
 
 class UsuarioServiceImpl(BaseService):
@@ -75,10 +124,10 @@ class UsuarioServiceImpl(BaseService):
                             usuario.password = usuario_old.password
 
     @service_method
-    def insert(self, entity: Usuario):
+    def create(self, entity: Usuario):
         # Sobrescritura de insert para comprobar password
         self.check_password(entity)
-        super().insert(entity)
+        super().create(entity)
 
     @service_method
     def update(self, entity: Usuario):
