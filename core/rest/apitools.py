@@ -1,6 +1,10 @@
 import enum
 from dataclasses import dataclass
 
+from flask import make_response
+
+from core.utils.jsonutils import encode_object_to_json
+
 
 class EnumHttpResponseStatusCodes(enum.Enum):
     """Enumerado de códigos de estado para respuestas de peticiones Http."""
@@ -36,12 +40,8 @@ class EnumHttpResponseStatusCodes(enum.Enum):
 class RequestBody(object):
     """Objeto de cuerpo de Request."""
 
-    def __init__(self, username: str = None, password: str = None, request_object: any = None):
+    def __init__(self, request_object: any = None):
         super().__init__()
-        self.username = username
-        """Nombre de usuario para token de autenticación."""
-        self.password = password
-        """Password de usuario para token de autenticación."""
         self.request_object = request_object
         """Objeto de la request. Puede ser un BaseEntity, una lista de filtros..."""
 
@@ -49,8 +49,8 @@ class RequestBody(object):
 class DBRequestBody(RequestBody):
     """Objeto de cuerpo de Request relacionadas con la base de datos."""
 
-    def __init__(self, entity: str, username: str = None, password: str = None, request_object: any = None):
-        super().__init__(username=username, password=password, request_object=request_object)
+    def __init__(self, entity: str, request_object: any = None):
+        super().__init__(request_object=request_object)
         self.entity = entity
         """Entidad objetivo de la base de datos."""
 
@@ -61,3 +61,12 @@ class RequestResponse:
     success: bool
     status_code: int
     response_object: any
+
+
+def convert_request_response_to_json_response(response_body: RequestResponse):
+    """
+    Crea una respuesta json a partir de un RequestResponse.
+    :param response_body: Objeto RequestResponse
+    :return: Respuesta válida para el solicitante en formato json.
+    """
+    return make_response(encode_object_to_json(response_body), response_body.status_code)

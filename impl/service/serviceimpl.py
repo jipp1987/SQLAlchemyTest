@@ -1,6 +1,8 @@
 from copy import deepcopy
 from typing import List
 
+from flask_jwt_extended import create_access_token
+
 from core.dao.daotools import EnumFilterTypes, FilterClause, FieldClause
 from core.service.service import BaseService, service_method, ServiceFactory
 from core.utils.passwordutils import check_password_using_bcrypt, hash_password_using_bcrypt
@@ -134,6 +136,44 @@ class UsuarioServiceImpl(BaseService):
         # Sobrescritura de update para comprobar password
         self.check_password(entity)
         super().update(entity)
+
+    @service_method
+    def find_user_by_username_and_password(self, username: str, password: str) -> Usuario:
+        """
+        Devuelve un usuario buscándolo por nombre de usuario y contraseña (sin encriptar) Lanza excepción si no
+        lo encuentra.
+        :param username: Nombre de usuario
+        :param password: Contraseña sin encriptar
+        :return: Usuario.
+        """
+        # Busco el usuario
+        filters: List[FilterClause] = [
+            FilterClause(field_name="username", filter_type=EnumFilterTypes.EQUALS, object_to_compare=username)
+        ]
+
+        usuarios: List[Usuario] = self.select(filter_clauses=filters, limit=1)
+
+        # Si no encuentra el usuario, lanzar excepción
+        if not usuarios:
+            raise ValueError("User does not exist.")
+
+        # Validar password
+        if not check_password_using_bcrypt(password, usuarios[0].password):
+            raise ValueError("Invalid password.")
+
+        return usuarios[0]
+
+    @service_method
+    def create_token(self, username: str, password: str) -> str:
+        """
+        Crea un token JWT para el usuario, buscándolo primero por usuario y contraseña (sin encriptar).
+        :param username: Nombre de usuario
+        :param password: Contraseña sin encriptar
+        :return: Token JWT.
+        """
+        usuario: Usuario = self.find_user_by_username_and_password(username, password)
+        # Devuelvo el token JWT
+        return create_access_token(identity=usuario.id)
 
 
 class RolServiceImpl(BaseService):

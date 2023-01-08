@@ -272,7 +272,7 @@ class BaseService(object, metaclass=ErrorHandler):
             # En principio esta función no está prevista para entidades con más de una clave principal,
             # para esos casos es mejor crear una función propia dentro de la implementación del servicio.
             if isinstance(id_field_name, list):
-                raise ValueError("This method is not supported for entities with multiple primary keys.")
+                raise NotImplementedError("This method is not supported for entities with multiple primary keys.")
 
             filters.append(FilterClause(field_name=id_field_name, filter_type=EnumFilterTypes.NOT_EQUALS,
                                         object_to_compare=entity_id))

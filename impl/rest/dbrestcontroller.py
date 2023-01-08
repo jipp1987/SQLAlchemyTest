@@ -1,77 +1,17 @@
-import sys
-import traceback
-from functools import wraps
 from typing import List, Union
 
-from flask import Blueprint, make_response, request
+from flask import Blueprint
+from flask_jwt_extended import get_jwt_identity
 
 from core.dao.daotools import JsonQuery
 from core.dao.modelutils import serialize_model, deserialize_model, find_entity_id_field_name
-from core.exception.errorhandler import WrappingException
-from core.rest.apitools import RequestResponse, EnumHttpResponseStatusCodes, DBRequestBody
+from core.rest.apitools import RequestResponse, EnumHttpResponseStatusCodes, DBRequestBody, \
+    convert_request_response_to_json_response
 from core.service.service import BaseService
-from core.utils.jsonutils import encode_object_to_json, decode_object_from_json
-from impl.rest import servicehandler
+from impl.rest.restutils import db_rest_fn
 
 db_service_blueprint = Blueprint("DBService", __name__, url_prefix='/api/DBService')
 """Blueprint para módulo de api."""
-
-
-def _db_rest_fn(function):
-    """
-    Decorador para tener un cuerpo común para todas las funciones del módulo.
-    :param function: Función a ejecutar.
-    :return: Decorador
-    """
-
-    @wraps(function)
-    def decorator(*args, **kwargs):
-        try:
-            # Obtengo el objeto enviado por json con la petición
-            json_format = encode_object_to_json(request.get_json(force=True))
-            # Luego transformo el string json a un objeto RequestBody, pasando el tipo como parámetro
-            request_body: DBRequestBody = decode_object_from_json(json_format, DBRequestBody)
-
-            # En función de la entidad seleccionada, cargar el servicio correspodiente
-            if request_body.entity is None or not request_body.entity:
-                raise ValueError("You have to specify a target entity.")
-
-            try:
-                service = getattr(servicehandler, f"{request_body.entity}RestService")
-            except AttributeError as e1:
-                raise AttributeError(f"Entity {request_body.entity} does not exist.") from e1
-
-            # Añado los parámetros a la función
-            kwargs['request_body'] = request_body
-            kwargs['service'] = service
-
-            return function(*args, **kwargs)
-        except (WrappingException, Exception) as e:
-            result: str
-            # Si hay error conocido, pasarlo en el mensaje de error, sino enviar su representación en forma de string.
-            if isinstance(e, WrappingException):
-                print(str(e), file=sys.stderr)
-                error: str = str(e.source_exception) if e.source_exception is not None else str(e)
-                result = error
-            else:
-                print(traceback.print_exc())
-                error: str = str(e)
-                result = error
-
-            response_body: RequestResponse = RequestResponse(response_object=result, success=False,
-                                                             status_code=EnumHttpResponseStatusCodes.BAD_REQUEST.value)
-            return _convert_request_response_to_json_response(response_body)
-
-    return decorator
-
-
-def _convert_request_response_to_json_response(response_body: RequestResponse):
-    """
-    Crea una respuesta json a partir de un RequestResponse.
-    :param response_body: Objeto RequestResponse
-    :return: Respuesta válida para el solicitante en formato json.
-    """
-    return make_response(encode_object_to_json(response_body), response_body.status_code)
 
 
 @db_service_blueprint.route('/create', methods=['POST'])
@@ -80,7 +20,7 @@ def create():
     Servicio Rest para crear entidades en la base de datos.
     """
 
-    @_db_rest_fn
+    @db_rest_fn
     def __create(*args, **kwargs): # noqa
         """
         Función interna create.
@@ -99,7 +39,7 @@ def create():
         response_body = RequestResponse(response_object=json_result, success=True,
                                         status_code=EnumHttpResponseStatusCodes.OK.value)
 
-        return _convert_request_response_to_json_response(response_body)
+        return convert_request_response_to_json_response(response_body)
 
     return __create()
 
@@ -110,7 +50,7 @@ def load():
     Servicio Rest para carga completa de entidades.
     """
 
-    @_db_rest_fn
+    @db_rest_fn
     def __load(*args, **kwargs):  # noqa
         request_body: DBRequestBody = kwargs["request_body"]
         service: BaseService = kwargs["service"]
@@ -123,7 +63,7 @@ def load():
         response_body = RequestResponse(response_object=json_result, success=True,
                                         status_code=EnumHttpResponseStatusCodes.OK.value)
 
-        return _convert_request_response_to_json_response(response_body)
+        return convert_request_response_to_json_response(response_body)
 
     return __load()
 
@@ -134,7 +74,7 @@ def update():
     Servicio Rest para actualizar entidades en la base de datos.
     """
 
-    @_db_rest_fn
+    @db_rest_fn
     def __update(*args, **kwargs): # noqa
         """
         Función interna update.
@@ -167,7 +107,7 @@ def update():
         response_body = RequestResponse(response_object=json_result, success=True,
                                         status_code=EnumHttpResponseStatusCodes.OK.value)
 
-        return _convert_request_response_to_json_response(response_body)
+        return convert_request_response_to_json_response(response_body)
 
     return __update()
 
@@ -178,7 +118,7 @@ def delete():
     Servicio Rest para eliminar entidades en la base de datos.
     """
 
-    @_db_rest_fn
+    @db_rest_fn
     def __delete(*args, **kwargs): # noqa
         """
         Función interna delete.
@@ -197,7 +137,7 @@ def delete():
         response_body = RequestResponse(response_object=json_result, success=True,
                                         status_code=EnumHttpResponseStatusCodes.OK.value)
 
-        return _convert_request_response_to_json_response(response_body)
+        return convert_request_response_to_json_response(response_body)
 
     return __delete()
 
@@ -208,7 +148,7 @@ def select():
     Servicio Rest para seleccionar entidades de la base de datos.
     """
 
-    @_db_rest_fn
+    @db_rest_fn
     def __select(*args, **kwargs): # noqa
         """
         Función interior select.
@@ -220,6 +160,9 @@ def select():
         # "*args, **kwargs" el debugger no sabe llegar hasta aquí sin hacer step into desde el decorador.
         request_body: DBRequestBody = kwargs["request_body"]
         service: BaseService = kwargs["service"]
+
+        # Obtener identidad del usuario
+        current_user_id = get_jwt_identity()
 
         result: list
 
@@ -252,7 +195,7 @@ def select():
         response_body: RequestResponse = RequestResponse(response_object=json_result, success=True,
                                                          status_code=EnumHttpResponseStatusCodes.OK.value)
 
-        return _convert_request_response_to_json_response(response_body)
+        return convert_request_response_to_json_response(response_body)
 
     return __select()
 
@@ -263,7 +206,7 @@ def count():
     Servicio Rest para seleccionar entidades de la base de datos.
     """
 
-    @_db_rest_fn
+    @db_rest_fn
     def __count(*args, **kwargs): # noqa
         """
         Función interior select.
@@ -287,6 +230,6 @@ def count():
         response_body: RequestResponse = RequestResponse(response_object=result, success=True,
                                                          status_code=EnumHttpResponseStatusCodes.OK.value)
 
-        return _convert_request_response_to_json_response(response_body)
+        return convert_request_response_to_json_response(response_body)
 
     return __count()
