@@ -9,7 +9,7 @@ def get_project_root_dir() -> str:
     :return: String con la ruta del directorio raíz.
     """
     # Busco el main del proyecto.
-    import __main__ as main
+    import __main__ as main # noqa
 
     if main:
         # Compruebo si main tiene el atributo __file__. Este atributo es la ruta del archivo desde el que se ha cargado
