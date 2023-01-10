@@ -23,6 +23,30 @@ msgid "i18n_base_common_update_success"
 msgstr "El registro '%s' se ha actualizado con éxito."
 
 # Errores
+msgid "i18n_error_serviceException_valueError"
+msgstr "Se ha producido un error con alguno de los valores durante la ejecución. Por favor, póngase en contacto con el
+administrador de la aplicación."
+
+msgid "i18n_error_serviceException_authorizationError"
+msgstr "Se ha producido un error con de autorización."
+
+msgid "i18n_error_serviceException_connectionError"
+msgstr "Se ha producido un error con la conexión a la base de datos. Por favor, póngase en contacto con el
+administrador de la aplicación."
+
+msgid "i18n_error_serviceException_duplicityError"
+msgstr "Ya existe un registro similar."
+
+msgid "i18n_error_serviceException_queryError"
+msgstr "Se ha producido un error con la consulta a la base de datos. Por favor, póngase en contacto con el
+administrador de la aplicación."
+
+msgid "i18n_error_serviceException_serviceError"
+msgstr "Se ha producido un error durante la ejecución del servicio."
+
+msgid "i18n_error_serviceException_otherError"
+msgstr "Se ha producido un error desconocido. Por favor, póngase en contacto con el administrador de la aplicación."
+
 msgid "i18n_base_commonError_not_id_in_update"
 msgstr "No se han enviado un id para identificar la entidad a actualizar."
 

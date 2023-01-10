@@ -6,13 +6,9 @@ from core.utils.fileutils import read_section_in_ini_file
 
 from flask import Flask
 
-from core.utils.i18nutils import prepare_translations
 from impl.rest.dbrestcontroller import db_service_blueprint
 from impl.rest.userrestcontroller import user_service_blueprint
 
-# Preparar traducciones de la aplicación
-TRANSLATIONS: dict = prepare_translations(language_list=["es_ES", "en_GB"], mo_file_name="base", dir_name="resources")
-"""Traducciones i18n."""
 
 if __name__ == '__main__':
     # Configurar Dao desde fichero ini

@@ -26,6 +26,27 @@ msgid "i18n_base_common_update_success"
 msgstr "The record '%s' has been updated successfully."
 
 # Errores
+msgid "i18n_error_serviceException_valueError"
+msgstr "An error occurred with any of the values during execution. Please contact the application administrator."
+
+msgid "i18n_error_serviceException_authorizationError"
+msgstr "An error occurred with authorization."
+
+msgid "i18n_error_serviceException_connectionError"
+msgstr "There was an error connecting to the database. Please contact the application administrator."
+
+msgid "i18n_error_serviceException_duplicityError"
+msgstr "A similar record already exists."
+
+msgid "i18n_error_serviceException_queryError"
+msgstr "There was an error with the database query. Please contact the application administrator."
+
+msgid "i18n_error_serviceException_serviceError"
+msgstr "An error occurred during the execution of the service."
+
+msgid "i18n_error_serviceException_otherError"
+msgstr "An unknown error has occurred. Please contact the application administrator."
+
 msgid "i18n_base_knownError_integrityError"
 msgstr "There was an error when entering or modifying the record, it is possible that there is one like it."
 

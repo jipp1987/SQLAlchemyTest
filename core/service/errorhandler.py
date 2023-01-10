@@ -3,7 +3,7 @@ import traceback
 import types
 from functools import wraps
 
-from core.service.servicetools import ServiceException, EnumServiceExceptionCodes
+from core.service.servicetools import ServiceException
 
 
 def catch_exceptions(function):
@@ -45,8 +45,7 @@ def catch_exceptions(function):
 
             # Devuelvo una ServiceException
             raise ServiceException(message=message, trace=formatted_traceback,
-                                   error_code=EnumServiceExceptionCodes.OTHER_ERROR,
-                                   source_exception=e, exception_type=exc_type.__name__)
+                                   error_code=None, source_exception=e, exception_type=exc_type.__name__)
 
     return decorator
 
