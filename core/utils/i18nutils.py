@@ -24,13 +24,11 @@ def change_locale(locale_iso: str):
     locale.setlocale(locale.LC_ALL, locale_iso)
 
 
-def translate(key: str, locale_iso: str = None, *args):
+def translate(key: str, locale_iso: str = None, args: list = None):
     """Traduce una clave i18n Parameters:
     :param: str:Clave i18n a traducir
     :param: str:Iso del locale al que se quiere traducir
     :param: args Posibles argumentos para sustituir valores que espera el valor de la clave en el fichero .po.
-    Si se pasan argumentos, importante pasar siempre como segundo parámetro el iso del locale,
-    o si se quiere usar el de por defecto None, pero pasar algo.
     :return: str:Clave traducida en función del locale actual
     """
     # Primero obtengo el valor de la clave en los ficheros po/mo
@@ -39,6 +37,6 @@ def translate(key: str, locale_iso: str = None, *args):
 
     # Ahora, si han llegado parámetros para sustituir los placeholders, los sustituyo en el valor obtenido
     if args:
-        result = result % args
+        result = result % (*args,)
 
     return result

@@ -43,3 +43,9 @@ msgstr "Se produjo un error con una cláusula durante la traducción de la consu
 
 msgid "i18n_base_commonError_unknown_field"
 msgstr "El campo %s no existe en la entidad %s."
+
+msgid "i18n_auth_error_username"
+msgstr "El usuario %s no existe."
+
+msgid "i18n_auth_error_password"
+msgstr "Contraseña incorrecta."

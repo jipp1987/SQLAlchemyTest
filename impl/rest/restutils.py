@@ -5,9 +5,9 @@ from functools import wraps
 from flask import request
 from flask_jwt_extended import verify_jwt_in_request
 
-from core.exception.errorhandler import WrappingException
 from core.rest.apitools import RequestResponse, RequestBody, EnumHttpResponseStatusCodes, DBRequestBody, \
     convert_request_response_to_json_response
+from core.service.servicetools import ServiceException
 from core.utils.jsonutils import encode_object_to_json, decode_object_from_json
 from impl.rest import servicehandler
 
@@ -31,10 +31,10 @@ def rest_fn(function):
             kwargs['request_body'] = request_body
 
             return function(*args, **kwargs)
-        except (WrappingException, Exception) as e:
+        except (ServiceException, Exception) as e:
             result: str
             # Si hay error conocido, pasarlo en el mensaje de error, sino enviar su representación en forma de string.
-            if isinstance(e, WrappingException):
+            if isinstance(e, ServiceException):
                 print(str(e), file=sys.stderr)
                 error: str = str(e.source_exception) if e.source_exception is not None else str(e)
                 result = error
@@ -84,10 +84,10 @@ def db_rest_fn(function):
             kwargs['service'] = service
 
             return function(*args, **kwargs)
-        except (WrappingException, Exception) as e:
+        except (ServiceException, Exception) as e:
             result: str
             # Si hay error conocido, pasarlo en el mensaje de error, sino enviar su representación en forma de string.
-            if isinstance(e, WrappingException):
+            if isinstance(e, ServiceException):
                 print(str(e), file=sys.stderr)
                 error: str = str(e.source_exception) if e.source_exception is not None else str(e)
                 result = error

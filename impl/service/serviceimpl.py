@@ -4,7 +4,8 @@ from typing import List
 from flask_jwt_extended import create_access_token
 
 from core.dao.daotools import EnumFilterTypes, FilterClause, FieldClause
-from core.service.service import BaseService, service_method, ServiceFactory
+from core.service.service import BaseService, ServiceFactory
+from core.service.servicetools import service_method, ServiceException, EnumServiceExceptionCodes
 from core.utils.passwordutils import check_password_using_bcrypt, hash_password_using_bcrypt
 from impl.dao.daoimpl import ClienteDaoImpl, TipoClienteDaoImpl, UsuarioDaoImpl, RolDaoImpl, UsuarioRolDaoImpl
 from impl.model.cliente import Cliente
@@ -155,11 +156,13 @@ class UsuarioServiceImpl(BaseService):
 
         # Si no encuentra el usuario, lanzar excepción
         if not usuarios:
-            raise ValueError("User does not exist.")
+            raise ServiceException(message="User does not exist.", i18n_key=("i18n_auth_error_username", [username]),
+                                   error_code=EnumServiceExceptionCodes.AUTHORIZATION_ERROR)
 
         # Validar password
         if not check_password_using_bcrypt(password, usuarios[0].password):
-            raise ValueError("Invalid password.")
+            raise ServiceException(message="Invalid password.",
+                                   error_code=EnumServiceExceptionCodes.AUTHORIZATION_ERROR)
 
         return usuarios[0]
 

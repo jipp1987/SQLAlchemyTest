@@ -5,23 +5,8 @@ from typing import Callable, Dict, Type, List, Union
 from core.dao.daotools import FilterClause, JoinClause, OrderByClause, FieldClause, EnumAggregateFunctions, \
     GroupByClause, EnumFilterTypes
 from core.dao.modelutils import BaseEntity, set_model_properties_by_dict, find_entity_id_field_name
-from core.exception.errorhandler import ErrorHandler
-
-
-def service_method(function):
-    """Utilizo este decorador para establecer un método de BaseService como método de transacción
-    en la base de datos."""
-
-    def wrapped(*args, **kwargs):
-        # Esta parte sería para añadir alguna lógica en la función, pero no es el caso. Realmente la quiero devolver
-        # como tal pero con un atributo a mayores para saber que le he añadido un decorador "service_function_dec". Lo
-        # utilizo para saber qué funciones deben iniciar transacciones de base de datos y hacer rollback en caso de
-        # error.
-        pass
-
-    # Le puedo añadir a cualquier función un atributo al vuelo, así que le añado uno para saber que tiene etiqueta
-    function.is_service_method = True
-    return function
+from core.service.errorhandler import ErrorHandler
+from core.service.servicetools import service_method
 
 
 class BaseService(object, metaclass=ErrorHandler):

@@ -43,3 +43,9 @@ msgstr "An error occurred with one clauses during query translation: %s."
 
 msgid "i18n_base_commonError_unknown_field"
 msgstr "Field %s does not exist in entity %s."
+
+msgid "i18n_auth_error_username"
+msgstr "User %s does not exist."
+
+msgid "i18n_auth_error_password"
+msgstr "Invalid password."

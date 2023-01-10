@@ -3,32 +3,7 @@ import traceback
 import types
 from functools import wraps
 
-
-class WrappingException(Exception):
-    """Excepción personalizada, a modo de barrera de fallos para intepretar las excepciones y no perder su
-    información. Se utiliza en los servicios.
-    """
-
-    def __init__(self, message: str, trace: str = None, source_exception: Exception = None, exception_type: any = None):
-        Exception.__init__(self)
-        self.message = message
-        """Mensaje de la excepción"""
-        self.trace = trace
-        """Traza del error. Puede ser null (por ejemplo para el caso de excepciones controladas, 
-        como validación de parámetros)."""
-        self.source_exception = source_exception
-        """Excepción a partir de la que se ha originado la excepción personalizada. Puede ser null."""
-
-        self.exception_type = type(self).__name__
-        """Tipo de excepción."""
-
-        # Si hay excepción origen, utilizo su tipo.
-        if self.source_exception is not None:
-            self.exception_type = exception_type if exception_type is not None else type(self.source_exception).__name__
-
-    def __str__(self):
-        return self.exception_type + (": " + str(self.source_exception) if self.source_exception is not None else "") \
-               + f"\n{self.message}" + ("\n\nTrace:\n" + self.trace if self.trace is not None else "")
+from core.service.servicetools import ServiceException, EnumServiceExceptionCodes
 
 
 def catch_exceptions(function):
@@ -47,10 +22,12 @@ def catch_exceptions(function):
             # Python puede devolver la ejecución de una función
             # Si se produce algún error, uso el código except... para capturarla y tratarla a modo de barrera de fallos
             return function(*args, **kwargs)
-        except WrappingException as c:
-            # Si ya ha sido envuelta en una CustomException, que la devuelva directamente
-            raise c
+        except ServiceException:
+            # Si es un ServiceException, lanzar directamente
+            raise
         except Exception as e:
+            # Caso para otros tipos de excepciones que se hayan podido producir: lo que hago es devolver siempre
+            # una ServiceException pero con la información de la excepción original.
             # De esta forma obtengo información de la excepción
             exc_type, exc_instance, exc_traceback = sys.exc_info()
 
@@ -66,9 +43,10 @@ def catch_exceptions(function):
             message: str = "An exception of type {0} occurred. Arguments:\n{1!r}". \
                 format(type(e).__name__, e.args)
 
-            # Envuelvo la excepción en una CustomException
-            raise WrappingException(message=message, trace=formatted_traceback,
-                                    source_exception=e, exception_type=exc_type.__name__) from e
+            # Devuelvo una ServiceException
+            raise ServiceException(message=message, trace=formatted_traceback,
+                                   error_code=EnumServiceExceptionCodes.OTHER_ERROR,
+                                   source_exception=e, exception_type=exc_type.__name__)
 
     return decorator
 
