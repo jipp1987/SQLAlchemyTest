@@ -46,12 +46,12 @@ def handle_service_exception(e: ServiceException, locale: str) -> Tuple[str, str
 
     # Primero obtengo el mensaje de error traducido (si no hay traducción usará devuelve el mensaje normal de la
     # excepción)
-    error = f"{error}\n\n{e.get_translated_message(translations=_TRANSLATIONS, locale=locale)}"
+    error = f"{error}\n{e.get_translated_message(translations=_TRANSLATIONS, locale=locale)}"
 
     # Si la excepción tiene una excepción origen, añadir la traza
     trace: str
     if e.source_exception is not None:
-        trace = f"{str(e.source_exception)}\n\n{e.trace}"
+        trace = f"{str(e.source_exception)}\n{e.trace}"
     else:
         # Si no tiene excepción origen, la traza es igual al error. Normalmente es para incidencias custom.
         trace: str = error

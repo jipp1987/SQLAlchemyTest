@@ -1,8 +1,6 @@
 from copy import deepcopy
 from typing import List
 
-from flask_jwt_extended import create_access_token
-
 from core.dao.daotools import EnumFilterTypes, FilterClause, FieldClause
 from core.service.service import BaseService, ServiceFactory
 from core.service.servicetools import service_method, ServiceException, EnumServiceExceptionCodes
@@ -165,18 +163,6 @@ class UsuarioServiceImpl(BaseService):
                                    error_code=EnumServiceExceptionCodes.AUTHORIZATION_ERROR)
 
         return usuarios[0]
-
-    @service_method
-    def create_token(self, username: str, password: str) -> str:
-        """
-        Crea un token JWT para el usuario, buscándolo primero por usuario y contraseña (sin encriptar).
-        :param username: Nombre de usuario
-        :param password: Contraseña sin encriptar
-        :return: Token JWT.
-        """
-        usuario: Usuario = self.find_user_by_username_and_password(username, password)
-        # Devuelvo el token JWT
-        return create_access_token(identity=usuario.id)
 
 
 class RolServiceImpl(BaseService):

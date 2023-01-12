@@ -1,3 +1,5 @@
+from datetime import timedelta
+
 from flask_cors import CORS
 from flask_jwt_extended import JWTManager
 
@@ -10,6 +12,29 @@ from impl.rest.dbrestcontroller import db_service_blueprint
 from impl.rest.userrestcontroller import user_service_blueprint
 
 
+def create_app():
+    """
+    Crea la app de flask.
+    :return: app
+    """
+    app_ = Flask(__name__)
+
+    # Configuración Json Web Token
+    app_.config["JWT_SECRET_KEY"] = read_section_in_ini_file(file_name="config", section="JWT")["jwt_secret_key"]
+    app_.config["JWT_TOKEN_LOCATION"] = ["headers"]
+    app_.config["JWT_ACCESS_TOKEN_EXPIRES"] = timedelta(hours=1)
+
+    # @app_.before_request
+    # def foo(response):
+    #     pass
+
+    # @app_.after_request
+    # def foo(response):
+    #     pass
+
+    return app_
+
+
 if __name__ == '__main__':
     # Configurar Dao desde fichero ini
     db_config = read_section_in_ini_file(file_name="config", section="DB")
@@ -19,10 +44,8 @@ if __name__ == '__main__':
     app_config = read_section_in_ini_file(file_name="config", section="REST")
 
     # Aplicación flask
-    app = Flask(__name__)
+    app = create_app()
 
-    # Configuración Json Web Token
-    app.config["JWT_SECRET_KEY"] = read_section_in_ini_file(file_name="config", section="JWT")["jwt_secret_key"]
     jwt = JWTManager(app)
 
     # Registro de blueprints
@@ -31,6 +54,7 @@ if __name__ == '__main__':
 
     # CORS para habilitar llamadas cross-origin a la api
     CORS(app)
+    # CORS(app, support_credentials=True)
 
     # Ejecutar app
     app.run(**app_config)
