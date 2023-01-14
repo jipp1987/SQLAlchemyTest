@@ -66,9 +66,9 @@ def refresh_token():
         # Recuperamos la identidad del usuario desde el contexto de flask y la utilizamos para crear un nuevo
         # token de acceso.
         identity = get_jwt_identity()
-        new_refresh_token = create_access_token(identity=identity)
+        new_access_token = create_access_token(identity=identity)
 
-        response_body = RequestResponse(response_object=new_refresh_token, success=True,
+        response_body = RequestResponse(response_object=new_access_token, success=True,
                                         status_code=EnumHttpResponseStatusCodes.OK.value)
         json_response = convert_request_response_to_json_response(response_body)
 

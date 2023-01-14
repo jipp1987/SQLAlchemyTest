@@ -1,7 +1,6 @@
 from typing import List, Union
 
 from flask import Blueprint
-from flask_jwt_extended import get_jwt_identity
 
 from core.dao.daotools import JsonQuery
 from core.dao.modelutils import serialize_model, deserialize_model, find_entity_id_field_name
@@ -162,7 +161,7 @@ def select():
         service: BaseService = kwargs["service"]
 
         # Obtener identidad del usuario
-        current_user_id = get_jwt_identity()
+        # current_user_id = get_jwt_identity()
 
         result: list
 
