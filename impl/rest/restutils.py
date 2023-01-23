@@ -6,6 +6,7 @@ from typing import Tuple, Union
 from flask import request
 from flask_jwt_extended import verify_jwt_in_request
 
+from core.dao.modelutils import BaseEntity
 from core.rest.apitools import RequestResponse, RequestBody, EnumHttpResponseStatusCodes, DBRequestBody, \
     convert_request_response_to_json_response
 from core.service.servicetools import ServiceException, EnumServiceExceptionCodes
@@ -150,3 +151,16 @@ def db_rest_fn(function):
                 return convert_request_response_to_json_response(response_body)
 
     return decorator
+
+
+def does_entity_have_create_update_user(entity_type: type(BaseEntity)) -> Tuple[bool, bool]:
+    """
+    Devuelve una tupla de dos boolean, comprobando si el tipo tiene los atributos "usuario_creacion" y
+    "usuario_ult_mod", devolviendo True o False para cada caso en ese orden.
+    :param entity_type: BaseEntity.
+    :return: Tuple[bool, bool]
+    """
+    o = entity_type()
+    result: Tuple[bool, bool] = (hasattr(o, "usuario_creacion"), hasattr(o, "usuario_ult_mod"))
+    return result
+

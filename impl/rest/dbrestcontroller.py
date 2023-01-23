@@ -1,13 +1,16 @@
 from typing import List, Union
 
 from flask import Blueprint
+from flask_jwt_extended import get_jwt_identity
 
 from core.dao.daotools import JsonQuery
 from core.dao.modelutils import serialize_model, deserialize_model, find_entity_id_field_name
 from core.rest.apitools import RequestResponse, EnumHttpResponseStatusCodes, DBRequestBody, \
     convert_request_response_to_json_response
 from core.service.service import BaseService
-from impl.rest.restutils import db_rest_fn
+from impl.model.usuario import Usuario
+from impl.rest import servicehandler
+from impl.rest.restutils import db_rest_fn, does_entity_have_create_update_user
 
 db_service_blueprint = Blueprint("DBService", __name__, url_prefix='/api/DBService')
 """Blueprint para módulo de api."""
@@ -30,8 +33,20 @@ def create():
         request_body: DBRequestBody = kwargs["request_body"]
         service: BaseService = kwargs["service"]
 
+        # Obtener identidad del usuario
+        current_user_id = get_jwt_identity()
+
         # Objeto query_object creado a partir del request_object
         entity_to_be_created = deserialize_model(request_body.request_object, service.get_entity_type(), True)
+
+        # Usuario de creación/modificación
+        has_create_update_user: tuple = does_entity_have_create_update_user(service.get_entity_type())
+        user: Usuario = servicehandler.UsuarioRestService.find_by_id(current_user_id)
+        if has_create_update_user[0]:
+            setattr(entity_to_be_created, "usuario_creacion", user)
+        if has_create_update_user[1]:
+            setattr(entity_to_be_created, "usuario_ult_mod", user)
+
         service.create(entity_to_be_created)
 
         json_result = f"'{entity_to_be_created}' has been created."
@@ -84,6 +99,12 @@ def update():
         request_body: DBRequestBody = kwargs["request_body"]
         service: BaseService = kwargs["service"]
 
+        # Obtener identidad del usuario
+        current_user_id = get_jwt_identity()
+
+        # Comprobar si la entidad tiene usuarios de creación/modificación.
+        has_create_update_user: tuple = does_entity_have_create_update_user(service.get_entity_type())
+
         # Recupero el id de la entidad del diccionario de valores.
         id_field_name: Union[str, list] = find_entity_id_field_name(service.get_entity_type())
         entity_id: any
@@ -98,6 +119,10 @@ def update():
             entity_id = request_body.request_object[id_field_name]
         else:
             raise KeyError("You have to specify the id of the entity on the request.")
+
+        # Usuario de última modificación
+        if has_create_update_user[1]:
+            request_body.request_object["usuario_ult_mod"] = {"id": current_user_id}
 
         # Actualizo los campos pasados como parámetro.
         entity_to_be_updated = service.update_fields(registry_id=entity_id, values_dict=request_body.request_object)
@@ -159,9 +184,6 @@ def select():
         # "*args, **kwargs" el debugger no sabe llegar hasta aquí sin hacer step into desde el decorador.
         request_body: DBRequestBody = kwargs["request_body"]
         service: BaseService = kwargs["service"]
-
-        # Obtener identidad del usuario
-        # current_user_id = get_jwt_identity()
 
         result: list
 
